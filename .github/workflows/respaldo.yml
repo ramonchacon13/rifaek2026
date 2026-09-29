@@ -1,0 +1,53 @@
+name: Respaldo diario de apartados
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Leer datos desde Upstash
+        id: leer
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$SYNC_TOKEN" ]; then
+            echo "Faltan los secretos SYNC_URL o SYNC_TOKEN en el repositorio"
+            exit 1
+          fi
+          curl -fsS -X POST "$SYNC_URL" \
+            -H "Authorization: Bearer $SYNC_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '["GET","apartados"]' > respuesta.json
+          node -e "
+            const j = require('./respuesta.json')
+            if (!j.result) { console.log('La base esta vacia, nada que respaldar'); process.exit(0) }
+            const d = JSON.parse(j.result)
+            const cuentas = Object.keys(d.numeros || {}).length
+            require('fs').writeFileSync('respaldo.json', JSON.stringify(d, null, 2))
+            console.log('Registros respaldados: ' + cuentas)
+          "
+
+      - name: Publicar si hay cambios
+        run: |
+          mkdir -p apartados
+          cp respaldo.json apartados/respaldo.json
+          rm -f respaldo.json respuesta.json
+          if git diff --quiet -- apartados/respaldo.json && [ -z "$(git status --porcelain apartados/respaldo.json)" ]; then
+            echo "Sin cambios, no se crea commit"
+            exit 0
+          fi
+          git config user.name  "respaldo-bot"
+          git config user.email "respaldo-bot@users.noreply.github.com"
+          git add apartados/respaldo.json
+          COMMIT="Respaldo automatico: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git commit -m "$COMMIT" || exit 0
+          git push
+          echo "Respaldo guardado en el repositorio"
