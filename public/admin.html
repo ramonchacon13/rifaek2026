@@ -159,7 +159,12 @@ function salud() {
       return
     }
     if (d.github) {
-      e.innerHTML = '<span style="color:#7fe0a0">Respaldo en GitHub activo. Tu PC sube las copias cada 5 min y se restauran al reiniciar este servidor.</span>'
+      if (d.githubOk === false) {
+        e.innerHTML = '<span style="color:#ff8f8f">No se pudo guardar el respaldo en GitHub: ' + (d.error || 'sin detalle') + '. Los datos siguen en este servidor.</span>'
+        return
+      }
+      e.innerHTML = '<span style="color:#7fe0a0">Respaldo en GitHub activo. Cada registro se guarda alli al instante' +
+        (d.ultimaSync ? ' (ultimo: ' + mins(d.ultimaSync) + ')' : '') + (d.snapshots ? ' | copias locales: ' + d.snapshots + ' dias' : '') + '</span>'
       return
     }
     if (d.syncOk === false) {

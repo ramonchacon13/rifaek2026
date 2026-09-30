@@ -12,13 +12,16 @@ const TOTAL = 100
 const SYNC_URL = String(process.env.SYNC_URL || '').trim()
 const SYNC_TOKEN = String(process.env.SYNC_TOKEN || '').trim()
 const BACKUP_URL = String(process.env.BACKUP_URL || '').trim()
+const GH_TOKEN = String(process.env.GITHUB_TOKEN || '').trim()
+const GH_REPO = String(process.env.GITHUB_REPO || 'ramonchacon13/rifaek2026').trim()
+const GH_PATH = 'apartados/respaldo.json'
 const SYNC_KEY = 'apartados'
 const SYNC_PULL_MS = Number(process.env.SYNC_PULL_MS || 300e3)
 const ES_RENDER = !!process.env.RENDER
 const SNAP_DIR = path.join(__dirname, 'snapshots')
 const MAX_SNAPS = 30
 
-const salud = { remoto: !!(SYNC_URL || BACKUP_URL), github: !!BACKUP_URL, ultimoSync: null, ok: null, error: '', pendiente: false }
+const salud = { remoto: !!(GH_TOKEN || BACKUP_URL || SYNC_URL), github: !!BACKUP_URL || !!GH_TOKEN, githubOk: null, ultimoSync: null, ok: null, error: '', pendiente: false }
 
 function cargar() {
   try {
@@ -34,6 +37,42 @@ function headersSync() {
   const h = { 'Content-Type': 'application/json' }
   if (SYNC_TOKEN) h['Authorization'] = 'Bearer ' + SYNC_TOKEN
   return h
+}
+
+function urlGh() { return 'https://api.github.com/repos/' + GH_REPO + '/contents/' + GH_PATH }
+
+function headersGh() {
+  return {
+    'Authorization': 'Bearer ' + GH_TOKEN,
+    'Accept': 'application/vnd.github+json',
+    'User-Agent': 'apartados',
+    'Content-Type': 'application/json'
+  }
+}
+
+function empujaGithub() {
+  if (!GH_TOKEN) return Promise.resolve(false)
+  const contenido = Buffer.from(JSON.stringify(db, null, 2), 'utf8').toString('base64')
+  const mensaje = 'Respaldo automatico: ' + Object.keys(db.numeros).length + ' registros'
+  return fetch(urlGh(), { headers: headersGh() })
+    .then(function (r) { return r.json() })
+    .then(function (meta) {
+      const cuerpo = { message: mensaje, content: contenido }
+      if (meta && meta.sha) cuerpo.sha = meta.sha
+      return fetch(urlGh(), { method: 'PUT', headers: headersGh(), body: JSON.stringify(cuerpo) })
+    })
+    .then(function (r) {
+      if (r.ok) {
+        salud.githubOk = true
+        salud.error = ''
+        salud.ultimoSync = Date.now()
+        return true
+      }
+      salud.githubOk = false
+      salud.error = 'GitHub respondio ' + r.status
+      return false
+    })
+    .catch(function (e) { salud.githubOk = false; salud.error = 'GitHub fallo: ' + e.message; return false })
 }
 
 function restauraGit() {
@@ -121,6 +160,7 @@ function sincroniza() {
 function guardar(d) {
   fs.writeFileSync(DATA, JSON.stringify(d, null, 2), 'utf8')
   snapshot()
+  if (GH_TOKEN) empujaGithub()
   if (SYNC_URL) { salud.pendiente = true; sincroniza() }
 }
 
@@ -253,6 +293,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       remoto: salud.remoto,
       github: salud.github,
+      githubOk: salud.githubOk,
       ultimaSync: salud.ultimoSync,
       syncOk: salud.ok,
       error: salud.error,
