@@ -13,6 +13,7 @@ const SYNC_URL = process.env.SYNC_URL || ''
 const SYNC_TOKEN = process.env.SYNC_TOKEN || ''
 const SYNC_KEY = 'apartados'
 const SYNC_PULL_MS = Number(process.env.SYNC_PULL_MS || 300e3)
+const BACKUP_URL = process.env.BACKUP_URL || ''
 const ES_RENDER = !!process.env.RENDER
 const SNAP_DIR = path.join(__dirname, 'snapshots')
 const MAX_SNAPS = 30
@@ -33,6 +34,26 @@ function headersSync() {
   const h = { 'Content-Type': 'application/json' }
   if (SYNC_TOKEN) h['Authorization'] = 'Bearer ' + SYNC_TOKEN
   return h
+}
+
+function restauraGit() {
+  if (!BACKUP_URL) return Promise.resolve(false)
+  if (Object.keys(db.numeros).length) return Promise.resolve(false)
+  return fetch(BACKUP_URL)
+    .then(function (r) { return r.json() })
+    .then(function (d) {
+      if (d && d.numeros && Object.keys(d.numeros).length) {
+        db = d
+        fs.writeFileSync(DATA, JSON.stringify(db, null, 2), 'utf8')
+        snapshot()
+        salud.ok = true
+        salud.ultimoSync = Date.now()
+        console.log('datos restaurados desde BACKUP_URL: ' + Object.keys(d.numeros).length + ' registros')
+        return true
+      }
+      return false
+    })
+    .catch(function (e) { console.log('BACKUP_URL fallo: ' + e.message); return false })
 }
 
 function cargaRemota() {
@@ -316,10 +337,11 @@ const server = http.createServer(async (req, res) => {
   })
 })
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
+  await restauraGit()
   cargaRemota()
   pullPeriodico()
   console.log('Apartados 00-99 escuchando en 0.0.0.0:' + PORT)
   console.log('Admin: /admin.html  clave: ' + ADMIN_PASS)
-  console.log('Respaldo remoto: ' + (SYNC_URL ? 'si' : 'no') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
+  console.log('Respaldo remoto: ' + (SYNC_URL || BACKUP_URL ? 'si' : 'no') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
 })
