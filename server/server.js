@@ -389,6 +389,8 @@ server.listen(PORT, '0.0.0.0', async () => {
   if (bd.activo) {
     try {
       await bd.asegurar()
+      const prueba = await bd.probar()
+      console.log(prueba ? 'prueba de escritura: CORRECTA' : 'prueba de escritura: FALLIDA')
       const remoto = await bd.cargar()
       if (Object.keys(remoto.numeros).length) {
         db = remoto
@@ -398,8 +400,10 @@ server.listen(PORT, '0.0.0.0', async () => {
         console.log('base de datos vacia, se usan los datos locales')
       }
     } catch (e) {
-      salud.bd.ok = false
-      salud.bd.error = e.message
+      salud.bd.conectado = false
+      salud.bd.escrituraOk = false
+      salud.bd.errorConexion = e.message
+      salud.bd.errorEscritura = e.message
       console.log('base de datos no disponible: ' + e.message + ' (se usan los datos locales)')
     }
   } else {
@@ -409,5 +413,5 @@ server.listen(PORT, '0.0.0.0', async () => {
   pullPeriodico()
   console.log('Apartados 00-99 escuchando en 0.0.0.0:' + PORT)
   console.log('Admin: /admin.html  clave: ' + (ES_RENDER ? '(definida en el servidor)' : ADMIN_PASS))
-  console.log('Base de datos: ' + (bd.activo ? 'configurada' : 'no') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
+  console.log('Base de datos: ' + (bd.activo ? 'configurada, escritura ' + (salud.bd.escrituraOk === true ? 'OK' : 'FALLIDA') : 'NO CONFIGURADA') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
 })

@@ -1,7 +1,14 @@
 const { Pool } = require('pg')
 
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim()
-const estado = { activo: !!DATABASE_URL, ok: null, error: '', ultimoSync: null }
+const estado = {
+  activo: !!DATABASE_URL,
+  conectado: null,
+  errorConexion: '',
+  escrituraOk: null,
+  errorEscritura: '',
+  ultimoSync: null
+}
 
 let pool = null
 if (DATABASE_URL) {
@@ -13,8 +20,8 @@ if (DATABASE_URL) {
     ssl: DATABASE_URL.includes('sslmode=disable') ? false : { rejectUnauthorized: false }
   })
   pool.on('error', function (e) {
-    estado.ok = false
-    estado.error = e.message
+    estado.conectado = false
+    estado.errorConexion = e.message
   })
 }
 
@@ -48,8 +55,8 @@ function cargar() {
         fecha: f.fecha
       }
     })
-    estado.ok = true
-    estado.error = ''
+    estado.conectado = true
+    estado.errorConexion = ''
     estado.ultimoSync = Date.now()
     return { numeros: numeros }
   })
@@ -65,13 +72,15 @@ function guardar(reg) {
     [reg.n, reg.nombre || '', reg.tel || '', reg.estado || 'libre', reg.foto || '',
      reg.apto || '', reg.codigo || '', reg.fecha || '', new Date().toISOString()]
   ).then(function () {
-    estado.ok = true
-    estado.error = ''
+    estado.escrituraOk = true
+    estado.errorEscritura = ''
+    estado.conectado = true
     estado.ultimoSync = Date.now()
     return true
   }).catch(function (e) {
-    estado.ok = false
-    estado.error = e.message
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
+    estado.conectado = false
     console.log('BD fallo al guardar ' + reg.n + ': ' + e.message)
     return false
   })
@@ -79,27 +88,30 @@ function guardar(reg) {
 
 function borrar(numero) {
   return pool.query('DELETE FROM reservas WHERE numero=$1', [numero]).then(function () {
-    estado.ok = true
+    estado.conectado = true
     estado.ultimoSync = Date.now()
     return true
   }).catch(function (e) {
-    estado.ok = false
-    estado.error = e.message
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
     return false
   })
 }
 
-function probar() {
-  if (!pool) return Promise.resolve(false)
+function selftest() {
   return pool.query('SELECT 1').then(function () {
-    estado.ok = true
-    estado.error = ''
-    return true
+    estado.conectado = true
+    estado.errorConexion = ''
+    return guardar({ n: '__prueba__', nombre: '', tel: '', estado: 'libre', codigo: '', fecha: '' })
+      .then(function () { return borrar('__prueba__') })
+      .then(function () { return estado.escrituraOk })
   }).catch(function (e) {
-    estado.ok = false
-    estado.error = e.message
+    estado.conectado = false
+    estado.escrituraOk = false
+    estado.errorConexion = e.message
+    estado.errorEscritura = e.message
     return false
   })
 }
 
-module.exports = { activo: estado.activo, estado: estado, asegurar: asegurar, cargar: cargar, guardar: guardar, borrar: borrar, probar: probar }
+module.exports = { activo: estado.activo, estado: estado, asegurar: asegurar, cargar: cargar, guardar: guardar, borrar: borrar, probar: selftest }

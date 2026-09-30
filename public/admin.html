@@ -159,13 +159,21 @@ function salud() {
       return
     }
     if (d.bd && d.bd.activo) {
-      if (d.bd.ok === false) {
-        e.innerHTML = '<span style="color:#ff8f8f">No se pudo guardar en la base de datos: ' + (d.bd.error || 'sin detalle') + '. Revisa que los datos esten bien.</span>'
+      if (d.bd.escrituraOk === false) {
+        e.innerHTML = '<span style="color:#ff8f8f">NO SE ESTAN GUARDANDO LOS DATOS FUERA DE AQUI: ' + (d.bd.errorEscritura || 'error desconocido') + '</span>'
         return
       }
-      e.innerHTML = '<span style="color:#7fe0a0">Base de datos conectada. Cada registro se guarda al instante' +
+      if (d.bd.escrituraOk === null) {
+        e.innerHTML = '<span style="color:#ffcc66">Base de datos conectada, pero todavia no se ha probado escribir. Haz una prueba antes de la rifa.</span>'
+        return
+      }
+      e.innerHTML = '<span style="color:#7fe0a0">Base de datos conectada y escribiendo. Cada registro se guarda al instante' +
         (d.bd.ultimoSync ? ' (ultimo: ' + mins(d.bd.ultimoSync) + ')' : '') +
         (d.snapshots ? ' | copias locales: ' + d.snapshots + ' dias' : '') + '</span>'
+      return
+    }
+    if (d.bd) {
+      e.innerHTML = '<span style="color:#ff8f8f">FALTA la variable DATABASE_URL en el servidor. Los datos NO se estan guardando fuera de aqui.</span>'
       return
     }
     if (d.github) {
