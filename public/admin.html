@@ -158,6 +158,10 @@ function salud() {
       e.innerHTML = '<span style="color:#ff8f8f">Sin respaldo remoto configurado. No se guardara copia externa.</span>'
       return
     }
+    if (d.github) {
+      e.innerHTML = '<span style="color:#7fe0a0">Respaldo en GitHub activo. Tu PC sube las copias cada 5 min y se restauran al reiniciar este servidor.</span>'
+      return
+    }
     if (d.syncOk === false) {
       e.innerHTML = '<span style="color:#ff8f8f">Fallo el respaldo: ' + (d.error || 'sin detalle') + '. Los datos siguen guardados en este servidor.</span>'
       return

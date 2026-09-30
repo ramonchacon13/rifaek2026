@@ -18,7 +18,7 @@ const ES_RENDER = !!process.env.RENDER
 const SNAP_DIR = path.join(__dirname, 'snapshots')
 const MAX_SNAPS = 30
 
-const salud = { remoto: !!SYNC_URL, ultimoSync: null, ok: null, error: '', pendiente: false }
+const salud = { remoto: !!(SYNC_URL || BACKUP_URL), github: !!BACKUP_URL, ultimoSync: null, ok: null, error: '', pendiente: false }
 
 function cargar() {
   try {
@@ -252,6 +252,7 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, {
       ok: true,
       remoto: salud.remoto,
+      github: salud.github,
       ultimaSync: salud.ultimoSync,
       syncOk: salud.ok,
       error: salud.error,
