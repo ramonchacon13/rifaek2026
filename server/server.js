@@ -2,6 +2,7 @@ const http = require('http')
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
+const bd = require('./bd')
 
 const PORT = parseInt(process.env.PORT, 10) || 3260
 const DIR = __dirname
@@ -21,7 +22,7 @@ const ES_RENDER = !!process.env.RENDER
 const SNAP_DIR = path.join(__dirname, 'snapshots')
 const MAX_SNAPS = 30
 
-const salud = { remoto: !!(GH_TOKEN || BACKUP_URL || SYNC_URL), github: !!BACKUP_URL || !!GH_TOKEN, githubOk: null, ultimoSync: null, ok: null, error: '', pendiente: false }
+const salud = { remoto: !!(GH_TOKEN || BACKUP_URL || SYNC_URL || bd.activo), github: !!BACKUP_URL || !!GH_TOKEN, githubOk: null, ultimoSync: null, ok: null, error: '', pendiente: false, bd: bd.estado }
 
 function cargar() {
   try {
@@ -157,9 +158,13 @@ function sincroniza() {
   }
 }
 
-function guardar(d) {
+function guardar(d, numero, borrado) {
   fs.writeFileSync(DATA, JSON.stringify(d, null, 2), 'utf8')
   snapshot()
+  if (bd.activo) {
+    if (borrado && numero) bd.borrar(numero)
+    else if (numero) bd.guardar(d.numeros[numero])
+  }
   if (GH_TOKEN) empujaGithub()
   if (SYNC_URL) { salud.pendiente = true; sincroniza() }
 }
@@ -245,7 +250,7 @@ const server = http.createServer(async (req, res) => {
     if (!tel) return sendJson(res, { ok: false, error: 'escribe tu numero de telefono (solo digitos)' }, 400)
     const c = codigo()
     db.numeros[n] = { n, nombre, apto: '', tel, foto: '', estado: 'apartado', codigo: c, fecha: new Date().toISOString() }
-    guardar(db)
+    guardar(db, n)
     return sendJson(res, { ok: true, numero: n, codigo: c })
   }
 
@@ -270,7 +275,7 @@ const server = http.createServer(async (req, res) => {
         r.nombre = String(b.nombre || r.nombre).trim().slice(0, 60)
         r.tel = soloDigitos(b.tel != null ? b.tel : r.tel, 20)
         r.apto = ''
-        guardar(db)
+        guardar(db, n)
         return sendJson(res, { ok: true })
       }
     }
@@ -298,6 +303,7 @@ const server = http.createServer(async (req, res) => {
       syncOk: salud.ok,
       error: salud.error,
       pendiente: salud.pendiente,
+      bd: salud.bd,
       snapshots: ES_RENDER ? 0 : snaps
     })
   }
@@ -342,7 +348,7 @@ const server = http.createServer(async (req, res) => {
       fecha: prev.fecha || new Date().toISOString()
     }
     if (db.numeros[n].estado === 'libre' && !db.numeros[n].nombre) delete db.numeros[n]
-    guardar(db)
+    guardar(db, n, true)
     return sendJson(res, { ok: true })
   }
 
@@ -350,7 +356,7 @@ const server = http.createServer(async (req, res) => {
     if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401)
     const b = await leerBody(req)
     const n = numOk(b.numero)
-    if (n !== null) { delete db.numeros[n]; guardar(db) }
+    if (n !== null) { delete db.numeros[n]; guardar(db, n, true) }
     return sendJson(res, { ok: true })
   }
 
@@ -364,7 +370,7 @@ const server = http.createServer(async (req, res) => {
     r.estado = est
     if (!r.nombre && est === 'libre') delete db.numeros[n]
     else db.numeros[n] = r
-    guardar(db)
+    guardar(db, n, !r.nombre && est === 'libre')
     return sendJson(res, { ok: true })
   }
 
@@ -380,10 +386,28 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(PORT, '0.0.0.0', async () => {
-  await restauraGit()
-  cargaRemota()
+  if (bd.activo) {
+    try {
+      await bd.asegurar()
+      const remoto = await bd.cargar()
+      if (Object.keys(remoto.numeros).length) {
+        db = remoto
+        fs.writeFileSync(DATA, JSON.stringify(db, null, 2), 'utf8')
+        console.log('cargados ' + Object.keys(db.numeros).length + ' registros desde la base de datos')
+      } else {
+        console.log('base de datos vacia, se usan los datos locales')
+      }
+    } catch (e) {
+      salud.bd.ok = false
+      salud.bd.error = e.message
+      console.log('base de datos no disponible: ' + e.message + ' (se usan los datos locales)')
+    }
+  } else {
+    await restauraGit()
+    cargaRemota()
+  }
   pullPeriodico()
   console.log('Apartados 00-99 escuchando en 0.0.0.0:' + PORT)
-  console.log('Admin: /admin.html  clave: ' + ADMIN_PASS)
-  console.log('Respaldo remoto: ' + (SYNC_URL || BACKUP_URL ? 'si' : 'no') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
+  console.log('Admin: /admin.html  clave: ' + (ES_RENDER ? '(definida en el servidor)' : ADMIN_PASS))
+  console.log('Base de datos: ' + (bd.activo ? 'configurada' : 'no') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
 })
