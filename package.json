@@ -1,0 +1,13 @@
+{
+  "name": "rikaek2027",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Apartados de motos 00-99: grid publico, reserva online y panel admin",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>rikaek2027 - Admin</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root { --verde:#12a05c; --ambar:#e08a00; --azul:#2f7bd6; --rojo:#d94a4a; }
+  body { font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:#0f1720; color:#eef3f8; padding:14px 12px 50px; }
+  h1 { font-size:22px; font-weight:800; margin-bottom:4px; }
+  .sub { color:#8fa0b4; font-size:13px; margin-bottom:16px; }
+  .card { background:#18222d; border:1px solid #2b3947; border-radius:14px; padding:16px; margin-bottom:14px; }
+  .oculto { display:none; }
+  label { display:block; font-size:12px; font-weight:700; color:#9fb0c3; margin:10px 0 4px; }
+  input, select { width:100%; padding:11px; border-radius:10px; border:1px solid #2b3947; background:#0f1720; color:#eef3f8; font-size:15px; }
+  .fila { display:flex; gap:10px; }
+  .fila > div { flex:1; }
+  .btn { padding:12px; border-radius:12px; border:0; background:var(--azul); color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+  .btn.verde { background:var(--verde); }
+  .btn.ambar { background:var(--ambar); }
+  .btn.rojo { background:var(--rojo); }
+  .btn.chico { padding:8px 12px; font-size:12px; }
+  .msj { text-align:center; font-size:13px; margin-top:10px; min-height:18px; }
+  .msj.ok { color:#3ddc84; } .msj.mal { color:#ff6b6b; }
+  .stats { display:flex; gap:8px; text-align:center; margin-bottom:14px; }
+  .stat { flex:1; background:#18222d; border:1px solid #2b3947; border-radius:12px; padding:12px 6px; }
+  .stat .n { font-size:22px; font-weight:800; }
+  .stat .l { font-size:10px; color:#8fa0b4; text-transform:uppercase; letter-spacing:.06em; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; color:#8fa0b4; text-transform:uppercase; padding:8px 6px; border-bottom:1px solid #2b3947; }
+  td { padding:9px 6px; border-bottom:1px solid #1c2733; vertical-align:middle; }
+  td.fotoC { width:44px; } td.fotoC img { width:36px; height:36px; object-fit:cover; border-radius:8px; background:#0d141c; }
+  .pill { font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px; text-transform:uppercase; }
+  .pill.libre { background:#123a2a; color:#3ddc84; }
+  .pill.apartado { background:#3a2c12; color:#ffb020; }
+  .pill.confirmado { background:#122a45; color:#5aa9ff; }
+  .buscar { display:flex; gap:8px; margin-bottom:12px; }
+  .buscar input { flex:1; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<h1>rikaek2027</h1>
+<div class="sub">Panel privado para registrar clientes</div>
+
+<div class="card" id="login">
+  <label>Clave de administrador</label>
+  <input type="password" id="pass" placeholder="Clave">
+  <button class="btn verde" id="bLogin" style="width:100%;margin-top:14px">Entrar</button>
+  <div class="msj" id="mLogin"></div>
+</div>
+
+<div id="panel" class="oculto">
+  <div id="salud" class="sub" style="margin-bottom:10px"></div>
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="sOcup" style="color:var(--azul)">0</div><div class="l">Ocupados</div></div>
+    <div class="stat"><div class="n" id="sLibre" style="color:var(--verde)">0</div><div class="l">Libres</div></div>
+    <div class="stat"><div class="n" id="sApart" style="color:var(--ambar)">0</div><div class="l">Apartados</div></div>
+  </div>
+
+  <div class="card">
+    <div class="sub" style="margin:0 0 6px;font-weight:800;color:#eef3f8">Registrar / Editar cliente</div>
+    <div class="fila">
+      <div><label>Numero</label><select id="fNum"></select></div>
+      <div><label>Estado</label><select id="fEstado">
+        <option value="apartado">Apartado</option>
+        <option value="confirmado">Confirmado</option>
+        <option value="libre">Libre</option>
+      </select></div>
+    </div>
+    <label>Nombre del cliente</label><input id="fNombre" placeholder="Nombre y apellido">
+    <label>Numero de telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\D+/g,'')">
+
+    <div style="text-align:center;margin:16px 0">
+      <img src="portada.jpg" alt="Moto" style="max-width:100%;max-height:26vh;border-radius:14px;border:1px solid #2b3947">
+    </div>
+
+    <button class="btn verde" id="bGuardar" style="width:100%">Guardar</button>
+    <button class="btn" id="bLimpiar" style="width:100%;margin-top:8px">Limpiar formulario</button>
+    <div class="msj" id="mSave"></div>
+  </div>
+
+  <div class="card">
+    <div class="fila" style="gap:8px">
+      <button class="btn chico" id="bDescargar" style="flex:1">Descargar respaldo</button>
+      <button class="btn chico" id="bRefrescar" style="flex:1">Actualizar lista</button>
+    </div>
+    <div class="msj" id="mRespaldo"></div>
+  </div>
+
+  <div class="card">
+    <div class="buscar"><input id="q" placeholder="Buscar por nombre, telefono o numero..."></div>
+    <div class="scroll"><table id="tabla">
+      <thead><tr><th>Num</th><th>Nombre</th><th>Telefono</th><th>Estado</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<script>
+var $ = function (id) { return document.getElementById(id) }
+var token = ''
+var todos = []
+
+function api(p, opt) {
+  opt = opt || {}
+  if (token) { opt.headers = opt.headers || {}; opt.headers['X-Admin'] = token }
+  return fetch(p, opt).then(function (r) { return r.json() })
+}
+
+$('bLogin').onclick = function () {
+  api('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: $('pass').value }) })
+    .then(function (d) {
+      if (!d.ok) { $('mLogin').textContent = d.error; $('mLogin').className = 'msj mal'; return }
+      token = d.token
+      $('login').classList.add('oculto')
+      $('panel').classList.remove('oculto')
+      llenaNums()
+      carga()
+    })
+}
+$('pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('bLogin').click() })
+
+function llenaNums() {
+  var s = $('fNum')
+  for (var i = 0; i < 100; i++) {
+    var o = document.createElement('option')
+    o.value = ('0' + i).slice(-2)
+    o.text = o.value
+    s.appendChild(o)
+  }
+}
+
+function carga() {
+  api('/api/admin/lista').then(function (d) {
+    if (!d.ok) return
+    todos = d.todos
+    pinta()
+  })
+  salud()
+}
+
+function mins(ms) {
+  if (!ms) return 'nunca'
+  var m = Math.floor((Date.now() - ms) / 60000)
+  if (m < 1) return 'hace menos de 1 min'
+  if (m < 60) return 'hace ' + m + ' min'
+  return 'hace ' + Math.floor(m / 60) + ' h'
+}
+
+function salud() {
+  api('/api/admin/salud').then(function (d) {
+    if (!d.ok) return
+    var e = $('salud')
+    if (!d.remoto) {
+      e.innerHTML = '<span style="color:#ff8f8f">Sin respaldo remoto configurado. No se guardara copia externa.</span>'
+      return
+    }
+    if (d.syncOk === false) {
+      e.innerHTML = '<span style="color:#ff8f8f">Fallo el respaldo: ' + (d.error || 'sin detalle') + '. Los datos siguen guardados en este servidor.</span>'
+      return
+    }
+    e.innerHTML = '<span style="color:#7fe0a0">Respaldo OK ' + mins(d.ultimaSync) + (d.pendiente ? ' (pendiente)' : '') +
+      (d.snapshots ? ' | copias locales: ' + d.snapshots + ' dias' : '') + '</span>'
+  })
+}
+
+$('bRefrescar').onclick = function () { carga() }
+$('bDescargar').onclick = function () {
+  fetch('/api/admin/descargar', { headers: { 'X-Admin': token } }).then(function (r) {
+    if (!r.ok) { $('mRespaldo').textContent = 'No se pudo descargar'; $('mRespaldo').className = 'msj mal'; return }
+    return r.blob()
+  }).then(function (b) {
+    if (!b) return
+    var url = URL.createObjectURL(b)
+    var a = document.createElement('a')
+    a.href = url
+    a.download = 'apartados-' + new Date().toISOString().slice(0, 10) + '.json'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    $('mRespaldo').textContent = 'Respaldo descargado'
+    $('mRespaldo').className = 'msj bien'
+  })
+}
+
+setInterval(function () { if (token) { carga() } }, 15000)
+
+function stats() {
+  var o = 0, a = 0, l = 100
+  todos.forEach(function (r) { if (r.estado === 'confirmado') o++; else a++ })
+  l = 100 - o - a
+  $('sOcup').textContent = o
+  $('sApart').textContent = a
+  $('sLibre').textContent = l
+}
+
+function pinta() {
+  var q = $('q').value.trim().toLowerCase()
+  var tb = $('tbody')
+  tb.innerHTML = ''
+  stats()
+  todos.filter(function (r) {
+    if (!q) return true
+    return (r.nombre || '').toLowerCase().indexOf(q) >= 0 || (r.tel || '').toLowerCase().indexOf(q) >= 0 || r.n.indexOf(q) >= 0
+  }).forEach(function (r) {
+    var tr = document.createElement('tr')
+    tr.innerHTML = '<td><b>' + r.n + '</b></td><td>' + (r.nombre || '-') + '</td>'
+      + '<td>' + (r.tel || '-') + '</td>'
+      + '<td><span class="pill ' + r.estado + '">' + r.estado + '</span></td>'
+      + '<td style="white-space:nowrap"><button class="btn chico editar">Edit</button> <button class="btn chico rojo lib">Libre</button></td>'
+    tr.querySelector('.editar').onclick = function () { editar(r) }
+    tr.querySelector('.lib').onclick = function () {
+      if (!confirm('Liberar el numero ' + r.n + '?')) return
+      api('/api/admin/liberar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: r.n }) }).then(carga)
+    }
+    tb.appendChild(tr)
+  })
+}
+
+$('q').addEventListener('input', pinta)
+
+function editar(r) {
+  $('fNum').value = r.n
+  $('fEstado').value = r.estado
+  $('fNombre').value = r.nombre || ''
+  $('fTel').value = r.tel || ''
+  window.scrollTo(0, 0)
+}
+
+$('bLimpiar').onclick = function () {
+  $('fNombre').value = ''; $('fTel').value = ''
+  $('mSave').textContent = ''
+}
+
+$('bGuardar').onclick = function () {
+  var cuerpo = {
+    numero: $('fNum').value, estado: $('fEstado').value,
+    nombre: $('fNombre').value.trim(), tel: $('fTel').value.trim()
+  }
+  api('/api/admin/guardar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
+    .then(function (d) {
+      if (d.ok) { $('mSave').textContent = 'Guardado'; $('mSave').className = 'msj ok'; carga() }
+      else { $('mSave').textContent = d.error; $('mSave').className = 'msj mal' }
+    })
+}
+</script>
+</body>
+</html>

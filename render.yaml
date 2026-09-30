@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: rikaek2027
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/server.js
+    healthCheckPath: /api/estado
+    envVars:
+      - key: ADMIN_PASS
+        sync: false
+      - key: SYNC_URL
+        sync: false
+      - key: SYNC_TOKEN
+        sync: false

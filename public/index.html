@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>rikaek2027</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root { --verde:#12a05c; --ambar:#e08a00; --azul:#2f7bd6; --gris:#8a97a6; }
+  body { font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:#0f1720; color:#eef3f8; padding:12px 10px 40px; }
+  header { text-align:center; margin-bottom:12px; }
+  header .portada { display:block; margin:0 auto 10px; max-width:100%; max-height:48vh; width:auto;
+                    border-radius:14px; border:1px solid #2b3947; }
+  header h1 { font-size:26px; font-weight:800; letter-spacing:.02em; }
+  header p { color:#8fa0b4; font-size:13px; margin-top:3px; }
+  .barra { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:12px 0; }
+  .chip { border:1px solid #26313d; background:#18222d; color:#cfe0f0; padding:8px 14px; border-radius:999px;
+          font-size:13px; font-weight:700; cursor:pointer; }
+  .chip.on { background:#2f7bd6; border-color:#2f7bd6; color:#fff; }
+  .cont { display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px; max-width:900px; margin:0 auto; }
+  .celda { background:#18222d; border:2px solid #26313d; border-radius:12px; padding:6px; text-align:center;
+           cursor:pointer; position:relative; overflow:hidden; }
+  .celda .num { font-size:20px; font-weight:800; letter-spacing:.02em; }
+  .celda .info { font-size:10px; color:#9fb0c3; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .celda .foto { width:100%; height:46px; object-fit:cover; border-radius:7px; margin-bottom:4px; display:block; background:#0d141c; }
+  .celda.libre { border-color:#1d5c3f; }
+  .celda.libre .num { color:var(--verde); }
+  .celda.apartado { border-color:#6b4c14; }
+  .celda.apartado .num { color:var(--ambar); }
+  .celda.confirmado { border-color:#24558c; }
+  .celda.confirmado .num { color:var(--azul); }
+  .marca { position:absolute; top:5px; right:6px; font-size:10px; }
+  .leyenda { max-width:900px; margin:18px auto 0; font-size:12px; color:#8fa0b4; text-align:center; line-height:1.7; }
+  .leyenda b { color:#cfe0f0; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; padding:14px; z-index:9; }
+  .overlay.on { display:flex; }
+  .modal { background:#18222d; border:1px solid #2b3947; border-radius:16px; width:100%; max-width:380px; max-height:92vh; overflow:auto; padding:18px; }
+  .modal h2 { font-size:30px; font-weight:800; text-align:center; margin-bottom:4px; }
+  .modal .estado { text-align:center; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px; }
+  .modal .prev { width:100%; border-radius:12px; display:block; margin-bottom:12px; background:#0d141c; }
+  label { display:block; font-size:12px; font-weight:700; color:#9fb0c3; margin:10px 0 4px; }
+  input, select { width:100%; padding:11px; border-radius:10px; border:1px solid #2b3947; background:#0f1720; color:#eef3f8; font-size:15px; }
+  .btn { width:100%; padding:13px; border-radius:12px; border:0; background:var(--verde); color:#fff; font-size:16px; font-weight:800; margin-top:14px; cursor:pointer; }
+  .btn.sec { background:#26313d; }
+  .btn.azul { background:var(--azul); }
+  .msj { text-align:center; font-size:13px; margin-top:10px; min-height:18px; }
+  .msj.ok { color:#3ddc84; }
+  .msj.mal { color:#ff6b6b; }
+  .fotoPick { display:flex; gap:10px; align-items:center; }
+  .fotoPick img { width:70px; height:70px; object-fit:cover; border-radius:10px; background:#0d141c; }
+  input[type=file] { padding:8px; font-size:12px; }
+  .volver { text-align:center; margin-top:12px; font-size:13px; color:#8fa0b4; }
+  .codigo { font-size:22px; font-weight:800; letter-spacing:.12em; text-align:center; background:#0f1720;
+            border:1px dashed #2b3947; border-radius:10px; padding:12px; margin:10px 0; }
+</style>
+</head>
+<body>
+<header>
+  <img class="portada" src="/portada.jpg" alt="">
+  <h1>rikaek2027</h1>
+  <p>Motos - puedes ver y apartar tu numero en linea</p>
+</header>
+
+<div class="barra">
+  <div class="chip on" data-f="todos">Todos</div>
+  <div class="chip" data-f="libre">Libres <span id="cLibre"></span></div>
+  <div class="chip" data-f="apartado">Apartados</div>
+  <div class="chip" data-f="confirmado">Confirmados</div>
+  <div class="chip" data-f="mio">Mi codigo</div>
+</div>
+
+<div class="cont" id="cont"></div>
+
+<div class="leyenda">
+  <b>Verde</b> libre &nbsp;·&nbsp; <b>Naranja</b> apartado (pendiente) &nbsp;·&nbsp; <b>Azul</b> confirmado<br>
+  Toca un numero verde para apartarlo. Te damos un codigo para editarlo despues.
+</div>
+
+<div class="overlay" id="ov">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+var $ = function (id) { return document.getElementById(id) }
+var datos = {}
+var filtro = 'todos'
+
+function api(p, opt) {
+  return fetch(p, opt).then(function (r) { return r.json() })
+}
+
+function carga() {
+  return api('/api/estado').then(function (d) {
+    datos = d.numeros
+    var libres = 0
+    for (var k in datos) if (datos[k].estado === 'libre') libres++
+    $('cLibre').textContent = '(' + libres + ')'
+    pinta()
+  })
+}
+
+function pinta() {
+  var c = $('cont')
+  c.innerHTML = ''
+  for (var i = 0; i < 100; i++) {
+    var n = ('0' + i).slice(-2)
+    var r = datos[n] || { estado: 'libre' }
+    if (filtro !== 'todos' && filtro !== 'mio' && r.estado !== filtro) continue
+    var d = document.createElement('div')
+    d.className = 'celda ' + r.estado
+    var html = ''
+    if (r.foto) html += '<img class="foto" src="' + r.foto + '">'
+    html += '<div class="num">' + n + '</div>'
+    if (r.estado === 'libre') {
+      html += '<div class="info">disponible</div>'
+    } else {
+      html += '<div class="info">' + (r.nombre || 'sin nombre') + '</div>'
+      if (r.apto) html += '<div class="info">Apto ' + r.apto + '</div>'
+    }
+    d.innerHTML = html
+    d.setAttribute('data-n', n)
+    d.onclick = function () { abre(this.getAttribute('data-n')) }
+    c.appendChild(d)
+  }
+}
+
+function abre(n) {
+  var r = datos[n] || { estado: 'libre' }
+  var et = r.estado
+  var etTxt = et === 'libre' ? 'DISPONIBLE' : (et === 'apartado' ? 'APARTADO' : 'CONFIRMADO')
+  var etCol = et === 'libre' ? 'var(--verde)' : (et === 'apartado' ? 'var(--ambar)' : 'var(--azul)')
+  var h = '<h2>' + n + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
+  if (r.foto) h += '<img class="prev" src="' + r.foto + '">'
+  if (et === 'libre') {
+    h += '<label>Tu nombre</label><input id="fNombre" placeholder="Nombre y apellido">'
+    h += '<label>Numero de telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+    h += '<div style="text-align:center;margin:16px 0">'
+      + '<img src="portada.jpg" alt="Moto" style="max-width:100%;max-height:22vh;border-radius:14px;border:1px solid #2b3947">'
+      + '</div>'
+    h += '<button class="btn" id="bApartar">Apartar el ' + n + '</button>'
+    h += '<div class="msj" id="m"></div>'
+  } else {
+    h += '<div class="info" style="color:#cfe0f0;font-size:15px;text-align:center">' + (r.nombre || '') + '</div>'
+    h += '<div class="volver">Este numero ya no esta libre.</div>'
+    h += '<button class="btn sec" id="bCerrar">Cerrar</button>'
+  }
+  $('modal').innerHTML = h
+  $('ov').classList.add('on')
+
+  var bC = $('bCerrar')
+  if (bC) bC.onclick = cierra
+
+  var bA = $('bApartar')
+  if (bA) {
+    bA.onclick = function () {
+      var nom = $('fNombre').value.trim()
+      if (!nom) { msg('Escribe tu nombre', 'mal'); return }
+      var tel = $('fTel').value.trim()
+      if (!tel) { msg('Escribe tu numero de telefono', 'mal'); return }
+      bA.disabled = true
+      api('/api/apartar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: n, nombre: nom, tel: tel }) })
+        .then(function (d) {
+          if (!d.ok) { msg(d.error || 'No se pudo', 'mal'); bA.disabled = false; return }
+          exitoApartar(n, d.codigo)
+        })
+    }
+  }
+}
+
+function msg(t, c) { var m = $('m'); if (m) { m.textContent = t; m.className = 'msj ' + c } }
+
+function exitoApartar(n, c) {
+  $('modal').innerHTML = '<h2>' + n + '</h2><div class="estado" style="color:var(--ambar)">APARTADO</div>'
+    + '<div style="text-align:center;font-size:14px;line-height:1.6">Guarda tu codigo para editarlo o recuperarlo:</div>'
+    + '<div class="codigo">' + c + '</div>'
+    + '<div class="volver">Envoie el codigo al administrador por WhatsApp para confirmar tu registro.</div>'
+    + '<button class="btn" id="bListo">Listo</button>'
+  $('bListo').onclick = function () { cierra(); carga() }
+}
+
+function pideCodigo() {
+  $('modal').innerHTML = '<h2 style="font-size:22px">Mi codigo</h2>'
+    + '<div style="text-align:center;font-size:13px;color:#8fa0b4;margin-bottom:10px">Escribe el codigo de 6 letras que te dimos</div>'
+    + '<input id="cCod" placeholder="Ej: K7P2QB" style="text-transform:uppercase;text-align:center;font-size:20px;letter-spacing:.1em">'
+    + '<button class="btn azul" id="bBuscar">Buscar</button><div class="msj" id="m"></div>'
+  $('ov').classList.add('on')
+  $('bBuscar').onclick = function () {
+    var c = $('cCod').value.trim().toUpperCase()
+    if (!c) return
+    api('/api/mio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c }) })
+      .then(function (d) {
+        if (!d.ok) { msg(d.error || 'No encontrado', 'mal'); return }
+        var r = d.r
+        var h = '<h2>' + r.n + '</h2><div class="estado" style="color:var(--ambar)">' + (r.estado === 'confirmado' ? 'CONFIRMADO' : 'APARTADO') + '</div>'
+        if (r.foto) h += '<img class="prev" src="' + r.foto + '">'
+        h += '<label>Tu nombre</label><input id="eNombre" value="' + (r.nombre || '') + '">'
+        h += '<label>Numero de telefono</label><input id="eTel" value="' + (r.tel || '') + '" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+        h += '<div style="text-align:center;margin:14px 0">'
+          + '<img src="portada.jpg" alt="Moto" style="max-width:100%;max-height:20vh;border-radius:14px;border:1px solid #2b3947">'
+          + '</div>'
+        h += '<button class="btn" id="bGuardar">Guardar cambios</button><div class="msj" id="m"></div>'
+        $('modal').innerHTML = h
+        $('bGuardar').onclick = function () {
+          api('/api/mio/editar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c, nombre: $('eNombre').value.trim(), tel: $('eTel').value.trim() }) })
+            .then(function (x) { if (x.ok) { msg('Guardado', 'ok'); carga() } else msg(x.error || 'Error', 'mal') })
+        }
+      })
+  }
+}
+
+function cierra() { $('ov').classList.remove('on') }
+$('ov').onclick = function (e) { if (e.target === $('ov')) cierra() }
+
+Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
+  c.onclick = function () {
+    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (x) { x.classList.remove('on') })
+    c.classList.add('on')
+    filtro = c.getAttribute('data-f')
+    if (filtro === 'mio') { pideCodigo(); filtro = 'todos' } else pinta()
+  }
+})
+
+carga()
+setInterval(carga, 5000)
+</script>
+</body>
+</html>
