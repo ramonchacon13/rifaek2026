@@ -9,12 +9,9 @@ const TOPE = afiche.TOPE
 const SIN_BASE = 'no se pudo guardar en la base de datos, intenta de nuevo en un momento'
 
 // --- logos ---
-// Los puestos son todos del mismo tamano, asi que hay UNA sola medida de
-// referencia. Se mide en cm del lado mas largo del logo ya placedo en el afiche.
-const MEDIDA_CM = 15
-const DPI = 300
-// px minimos = cm / 2.54 * DPI. A 15 cm y 300 dpi son 1772 px.
-const PX_MIN = Math.round((MEDIDA_CM / 2.54) * DPI)
+// Se recibe lo que sea: JPG, PNG, PDF o captura. Quien lo baja y lo prepara
+// para el diseno es el organizador, asi que el formato no lo decide el servidor.
+// Lo unico que se limita es el peso del archivo y el archivo vacio.
 const MAX_BYTES = 4 * 1024 * 1024
 const VECTOR = { pdf: 'PDF vector', svg: 'SVG vector', eps: 'EPS vector', ai: 'AI vector' }
 const RASTER = { png: 'PNG', jpg: 'JPG', jpeg: 'JPG', webp: 'WEBP', gif: 'GIF' }
@@ -147,62 +144,18 @@ function dimensiones(buf, ext) {
   return null
 }
 
-// Que tan vectorial es un PDF: cuenta operators de dibujo y texto.
-// Un PDF de captura de pantalla es una sola imagen; uno de Illustrator es
-// decenas de operadores de trazo y texto.
-function pesoVectorPdf(buf) {
-  const s = buf.toString('latin1')
-  let ops = 0
-  for (const p of [' c\n', ' l\n', ' m\n', ' re\n', ' Tj\n', ' TJ\n']) {
-    let i = 0
-    while ((i = s.indexOf(p, i)) !== -1) { ops++; i++ }
-  }
-  return ops
-}
-
-// Decide si el archivo sirve para imprimir. Devuelve el veredicto y el motivo,
-// en palabras que se puedan entender sin saber de diseno.
-function validaLogo(buf, ext) {
-  if (VECTOR[ext]) {
-    const ops = pesoVectorPdf(buf)
-    if (ext === 'pdf' && ops < 20) {
-      return {
-        sirve: false,
-        tipo: VECTOR[ext],
-        px: 0,
-        aviso: 'Este PDF parece una captura o una imagen, no un dibujo vectorial. Vuelvelo a exportar desde el programa de diseno con la opcion de curvas.'
-      }
-    }
-    return { sirve: true, tipo: VECTOR[ext], px: 0, aviso: '' }
-  }
+// Identifica que es el archivo y que tan grande esta. No se rechaza nada por
+// formato ni por resolucion: quien lo baja y lo prepara para el diseno es el
+// organizador, asi que ahi el JPG, la captura o el PDF chiquito no molestan.
+// Lo unico que si se corta es el tamano del archivo (4 MB) y el archivo vacio.
+function describeLogo(buf, ext) {
+  if (VECTOR[ext]) return { tipo: VECTOR[ext], px: 0 }
   if (RASTER[ext]) {
-    if (ext === 'gif') {
-      return { sirve: false, tipo: RASTER[ext], px: 0, aviso: 'El formato GIF no sirve para imprimir, se pixelea. Exporta en PNG.' }
-    }
-    if (ext === 'jpg' || ext === 'jpeg') {
-      return {
-        sirve: false,
-        tipo: RASTER[ext],
-        px: 0,
-        aviso: 'El JPG comprime y deja los bordes sucios. Para un logo es mejor PNG o PDF vectorial.'
-      }
-    }
     const d = dimensiones(buf, ext)
-    if (!d) {
-      return { sirve: false, tipo: RASTER[ext], px: 0, aviso: 'No se pudo leer la imagen. Revisa que el archivo no este danado.' }
-    }
-    const px = Math.max(d.ancho, d.alto)
-    if (px < PX_MIN) {
-      return {
-        sirve: false,
-        tipo: RASTER[ext],
-        px: px,
-        aviso: 'La imagen es de ' + px + ' px y necesita al menos ' + PX_MIN + ' px para medir ' + MEDIDA_CM + ' cm sin pixelarse. Vuelve a exportarla mas grande.'
-      }
-    }
-    return { sirve: true, tipo: RASTER[ext] + ' ' + px + ' px', px: px, aviso: '' }
+    const px = d ? Math.max(d.ancho, d.alto) : 0
+    return { tipo: RASTER[ext] + (px ? ' ' + px + ' px' : ''), px: px }
   }
-  return { sirve: false, tipo: ext.toUpperCase(), px: 0, aviso: 'Formato no admitido. Sube un PDF vectorial o un PNG.' }
+  return { tipo: (ext ? ext.toUpperCase() : '') || 'archivo', px: 0 }
 }
 
 function sendJson(res, obj, code) {
@@ -220,8 +173,9 @@ function leerBody(req) {
 }
 
 // El logo llega como data URL (base64) dentro del JSON, igual que las fotos de
-// la rifa. Solo se guardan PDF/SVG/PNG y hasta 4 MB. El cuerpo se lee una sola
-// vez y se devuelve entero para no perder el numero de puesto.
+// la rifa. Se recibe cualquier formato; lo unico que se corta es el tamano
+// (4 MB) y el archivo vacio. El cuerpo se lee una sola vez y se devuelve entero
+// para no perder el numero de puesto.
 function leerLogoBinario(req) {
   return new Promise((resolve) => {
     let s = ''
@@ -239,11 +193,15 @@ function leerLogoBinario(req) {
       const puesto = b.puesto
       const cod = String(b.codigo == null ? '' : b.codigo).trim().toUpperCase()
       const data = String(b.logo || '')
-      const m = data.match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,(.+)$/i)
+      // El payload puede venir vacio ('data:...;base64,'): eso se rechaza con
+      // el mensaje de archivo vacio, no con el de formato no reconocido.
+      const m = data.match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,(.*)$/i)
       if (!m) return resolve({ error: 'formato de archivo no reconocido' })
       const mime = m[1].toLowerCase()
-      const ext = mime.split('/')[1]
-      if (!VECTOR[ext] && !RASTER[ext]) return resolve({ error: 'solo se admiten PDF, SVG y PNG' })
+      // 'image/svg+xml' -> 'svg'. Cualquier otro tipo se toma tal cual:
+      // aqui no se decide si el formato sirve o no.
+      let ext = mime.split('/')[1]
+      if (ext.indexOf('+') >= 0) ext = ext.split('+')[0]
       let buf
       try { buf = Buffer.from(m[2], 'base64') } catch (e) { return resolve({ error: 'el archivo esta danado' }) }
       if (!buf.length) return resolve({ error: 'el archivo esta vacio' })
@@ -398,14 +356,25 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       for (const k in cache) {
         if (cache[k].codigo === c) {
           const r = cache[k]
-          return sendJson(res, { ok: true, r: {
-            puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado,
-            pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos,
-            // El dueno y la vendedora ven su propio logo con el codigo. No lleva
-            // telefono ni codigo de otros: solo lo de su puesto.
-            logo: r.logo || '', logoTipo: r.logoTipo || '',
-            logoEstado: r.logoEstado || 'sin-logo', logoNota: r.logoNota || ''
-          } })
+          // El archivo se pide de a uno, solo cuando alguien busca su codigo.
+          return afiche.leerLogo(r.puesto).then(function (blob) {
+            return sendJson(res, { ok: true, r: {
+              puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado,
+              pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos,
+              // El dueno y la vendedora ven su propio logo con el codigo. No lleva
+              // telefono ni codigo de otros: solo lo de su puesto.
+              logo: blob, logoTipo: r.logoTipo || '',
+              logoEstado: r.logoEstado || 'sin-logo', logoNota: r.logoNota || ''
+            } })
+          }).catch(function () {
+            // Si el archivo no se pudo leer, el resto del puesto sigue sirviendo.
+            return sendJson(res, { ok: true, r: {
+              puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado,
+              pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos,
+              logo: '', logoTipo: r.logoTipo || '',
+              logoEstado: r.logoEstado || 'sin-logo', logoNota: r.logoNota || ''
+            } })
+          })
         }
       }
       return sendJson(res, { ok: false, error: 'codigo no encontrado' }, 404)
@@ -444,17 +413,10 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       if (r.logoEstado === 'aprobado') {
         return sendJson(res, { ok: false, error: 'Tu logo ya fue aprobado y no se puede reemplazar. Si necesitas cambiarlo, habla con el organizador.' }, 409)
       }
-      const v = validaLogo(file.buf, file.ext)
-      if (!v.sirve) {
-        // Se guarda marcado como rechazado para que el organizador pueda mirarlo.
-        return guardaLogoArchivo(n, file, v, 'rechazado').then(function (ok) {
-          if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-          return sendJson(res, { ok: false, error: v.aviso, tipo: v.tipo, px: v.px, guardado: true })
-        })
-      }
-      return guardaLogoArchivo(n, file, v, 'recibido').then(function (ok) {
+      const d = describeLogo(file.buf, file.ext)
+      return guardaLogoArchivo(n, file, d, 'recibido').then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-        return sendJson(res, { ok: true, puesto: n, tipo: v.tipo, px: v.px })
+        return sendJson(res, { ok: true, puesto: n, tipo: d.tipo, px: d.px })
       })
     }).then(function () { return true }), true
   }
@@ -539,40 +501,57 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
     const puestos = []
     for (let i = 1; i <= TOTAL; i++) {
       const r = cache[i]
-      if (r && (r.nombre || r.pagado > 0)) puestos.push(r)
+      // Se copia el objeto: meter el logo aqui a mano dejaria el archivo en la
+      // caché, que es justamente lo que no se debe cargar.
+      if (r && (r.nombre || r.pagado > 0)) puestos.push(JSON.parse(JSON.stringify(r)))
     }
-    const txt = JSON.stringify({
-      generado: new Date().toISOString(),
-      resumen: resumen(cache),
-      puestos: puestos
-    }, null, 2)
-    res.writeHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="afiche-' + new Date().toISOString().slice(0, 10) + '.json"'
-    })
-    res.end(txt)
-    return true
+    // Los archivos no viven en la caché, se piden de a uno. Sin este paso el
+    // respaldo saldria sin ningun logo.
+    return (afiche.activo ? afiche.leerLogosTodos() : Promise.resolve([])).then(function (filas) {
+      const mapa = {}
+      filas.forEach(function (f) { mapa[f.puesto] = f.logo })
+      puestos.forEach(function (p) {
+        p.logo = mapa[p.puesto] || ''
+        p.tieneLogo = !!p.logo
+      })
+      const txt = JSON.stringify({
+        generado: new Date().toISOString(),
+        resumen: resumen(cache),
+        puestos: puestos
+      }, null, 2)
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="afiche-' + new Date().toISOString().slice(0, 10) + '.json"'
+      })
+      res.end(txt)
+      return true
+    }).then(function () { return true }), true
   }
 
   // Ver un logo. Solo con sesion de admin: es un archivo de trabajo, no va
   // publicado. Se sirve con no-store porque el mismo puesto puede cambiar.
+  // El archivo se trae de la base de a uno, nunca en bloque.
   if (p.indexOf('/api/afiche/admin/logo/') === 0 && req.method === 'GET') {
     if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
     const n = puestoOk(p.split('/').pop())
     if (n === null) return sendJson(res, { ok: false, error: 'numero de puesto invalido' }, 400), true
     const r = cache[n]
-    if (!r || !r.logo) return sendJson(res, { ok: false, error: 'este puesto no tiene logo' }, 404), true
-    // En la base esta la data URL completa; hay que sacar solo los bytes, o el
-    // navegador recibiria texto en vez de una imagen.
-    const m = String(r.logo).match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,(.+)$/i)
-    if (!m) return sendJson(res, { ok: false, error: 'el archivo guardado esta danado' }, 500), true
-    const buf = Buffer.from(m[2], 'base64')
-    res.writeHead(200, {
-      'Content-Type': m[1].toLowerCase(),
-      'Content-Length': buf.length,
-      'Cache-Control': 'no-store'
-    })
-    return res.end(buf), true
+    if (!r || !r.tieneLogo) return sendJson(res, { ok: false, error: 'este puesto no tiene logo' }, 404), true
+    return afiche.leerLogo(n).then(function (blob) {
+      // En la base esta la data URL completa; hay que sacar solo los bytes, o el
+      // navegador recibiria texto en vez de una imagen.
+      const m = String(blob).match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,(.+)$/i)
+      if (!m) return sendJson(res, { ok: false, error: 'el archivo guardado esta danado' }, 500)
+      const buf = Buffer.from(m[2], 'base64')
+      res.writeHead(200, {
+        'Content-Type': m[1].toLowerCase(),
+        'Content-Length': buf.length,
+        'Cache-Control': 'no-store'
+      })
+      return res.end(buf)
+    }).catch(function (e) {
+      return sendJson(res, { ok: false, error: SIN_BASE }, 503)
+    }).then(function () { return true }), true
   }
 
   if (p === '/api/afiche/admin/logo/subir' && req.method === 'POST') {
@@ -582,18 +561,10 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       const n = puestoOk(file.puesto)
       if (n === null) return sendJson(res, { ok: false, error: 'numero de puesto invalido' }, 400)
       if (!cache[n]) return sendJson(res, { ok: false, error: 'ese puesto no esta en uso' }, 404)
-      const v = validaLogo(file.buf, file.ext)
-      if (!v.sirve) {
-        // Se guarda igual para que puedas mirarlo, pero queda como rechazado
-        // con el motivo a la vista.
-        return guardaLogoArchivo(n, file, v, 'rechazado').then(function (ok) {
-          if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-          return sendJson(res, { ok: false, error: v.aviso, tipo: v.tipo, px: v.px, guardado: true })
-        })
-      }
-      return guardaLogoArchivo(n, file, v, 'recibido').then(function (ok) {
+      const d = describeLogo(file.buf, file.ext)
+      return guardaLogoArchivo(n, file, d, 'recibido').then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-        return sendJson(res, { ok: true, puesto: n, tipo: v.tipo, px: v.px })
+        return sendJson(res, { ok: true, puesto: n, tipo: d.tipo, px: d.px })
       })
     }).catch(function (e) {
       return sendJson(res, { ok: false, error: 'no se pudo guardar el logo: ' + e.message }, 500)
@@ -614,7 +585,7 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
         })
       }
       const prev = cache[n]
-      if (!prev || !prev.logo) return sendJson(res, { ok: false, error: 'este puesto no tiene logo todavia' }, 404)
+      if (!prev || !prev.tieneLogo) return sendJson(res, { ok: false, error: 'este puesto no tiene logo todavia' }, 404)
       const nota = String(b.nota || '').trim().slice(0, 200)
       if (!afiche.activo) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
       return afiche.estadoLogo(n, est, nota).then(function (ok) {
@@ -630,15 +601,16 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
     const lista = []
     for (let i = 1; i <= TOTAL; i++) {
       const r = cache[i]
-      if (!r || (!r.logo && r.estado === 'libre')) continue
+      if (!r || (!r.tieneLogo && r.estado === 'libre')) continue
       lista.push({
         puesto: i,
         nombre: r.nombre,
         estado: r.estado,
         pagado: r.pagado,
         saldo: r.saldo,
-        logoEstado: r.logoEstado,
+        tieneLogo: r.tieneLogo,
         logoTipo: r.logoTipo,
+        logoEstado: r.logoEstado,
         logoNota: r.logoNota
       })
     }
@@ -647,7 +619,7 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       const r = cache[i]
       if (r && r.estado !== 'libre' && r.logoEstado !== 'aprobado') falta.push(i)
     }
-    return sendJson(res, { ok: true, lista: lista, faltan: falta, pxMin: PX_MIN, medidaCm: MEDIDA_CM }), true
+    return sendJson(res, { ok: true, lista: lista, faltan: falta }), true
   }
 
   if (p === '/api/afiche/admin/salud' && req.method === 'GET') {

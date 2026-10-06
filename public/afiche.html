@@ -164,8 +164,8 @@ function abre(n) {
     h += '<label>Tu nombre</label><input id="fNombre" placeholder="Nombre y apellido">'
     h += '<label>Tu numero de telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
     h += '<label>Cuanto abonas ahora (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
-    h += '<label>Logo del puesto (opcional)</label><input type="file" id="fLogo" accept=".pdf,.svg,.png,application/pdf,image/png,image/svg+xml">'
-    h += '<div class="nota">PDF vectorial o PNG. Si no lo tienes a la mano, subelo despues con tu codigo.</div>'
+    h += '<label>Logo del puesto (opcional)</label><input type="file" id="fLogo" accept="image/*,.pdf,.svg">'
+    h += '<div class="nota">JPG, PNG, PDF o captura. Si no lo tienes a la mano, subelo despues con tu codigo.</div>'
     h += '<div class="nota">Puedes apartar sin abonar ahora y pagar despues con tu codigo.</div>'
     h += '<button class="btn" id="bApartar">Apartar el ' + n + '</button>'
     h += '<div class="msj" id="m"></div>'
@@ -247,15 +247,18 @@ function muestraMi(c, aviso) {
 
 // El logo que el dueno o la vendedora ven con su codigo.
 function logoActual(r) {
-  if (!r.logo) return ''
-  var vis = r.logoTipo.indexOf('PDF') === 0
-    ? '<iframe src="' + r.logo + '" style="width:100%;height:130px;border:0;border-radius:10px;background:#fff"></iframe>'
-    : '<img src="' + r.logo + '" style="max-width:100%;max-height:130px;border-radius:10px">'
+  if (!r.logoEstado || r.logoEstado === 'sin-logo') return ''
+  var vis = ''
+  if (r.logo) {
+    vis = r.logoTipo.indexOf('PDF') === 0
+      ? '<iframe src="' + r.logo + '" style="width:100%;height:130px;border:0;border-radius:10px;background:#fff"></iframe>'
+      : '<img src="' + r.logo + '" style="max-width:100%;max-height:130px;border-radius:10px">'
+  }
   var t = r.logoEstado === 'aprobado' ? 'Tu logo ya quedo aprobado.'
     : (r.logoEstado === 'rechazado' ? 'El logo fue rechazado: hay que subirlo de nuevo.'
     : (r.logoEstado === 'recibido' ? 'Logo recibido, falta que lo revisen.' : ''))
   return '<div class="nota" style="margin-top:14px">Tu logo:</div>'
-    + '<div style="text-align:center;margin-top:6px">' + vis + '</div>'
+    + (vis ? '<div style="text-align:center;margin-top:6px">' + vis + '</div>' : '')
     + (t ? '<div class="nota">' + t + '</div>' : '')
     + (r.logoNota ? '<div class="nota" style="color:#ff9a9a">' + esc(r.logoNota) + '</div>' : '')
 }
@@ -271,8 +274,8 @@ function pintaMi(c, r, aviso) {
   if (et !== 'pagado') {
     h += '<label>Cuanto vas a abonar</label><input id="aMonto" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
   }
-  h += '<label>Logo del puesto</label><input type="file" id="fLogo" accept=".pdf,.svg,.png,application/pdf,image/png,image/svg+xml">'
-  h += '<div class="nota">PDF vectorial o PNG grande. Puedes subirlo hoy o despues, siempre con tu codigo.</div>'
+  h += '<label>Logo del puesto</label><input type="file" id="fLogo" accept="image/*,.pdf,.svg">'
+  h += '<div class="nota">JPG, PNG, PDF o captura. Puedes subirlo hoy o despues, siempre con tu codigo.</div>'
   h += '<button class="btn ambar" id="bAbonar">' + (et === 'pagado' ? 'Subir logo' : 'Registrar abono y logo') + '</button>'
   h += '<div class="msj" id="m"></div>'
   h += '<button class="btn sec" id="bCerrar">Cerrar</button>'

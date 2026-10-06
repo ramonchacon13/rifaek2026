@@ -151,9 +151,9 @@
   <div class="card">
     <div class="sub" style="margin:0 0 6px;font-weight:800;color:#eef3f8">Logos</div>
     <div style="font-size:12px;color:#8fa0b4;margin-bottom:10px">
-      Cada puesto mide igual. Para que el logo imprima sin pixelarse a <span id="pxInfo"></span>:
-      <b>PDF vectorial</b> (texto convertido a curvas) o <b>PNG</b> de al menos <b id="pxMin"></b> px.
-      Las capturas de pantalla y los JPG no sirven para imprimir.
+      Sube el logo como lo tengas: <b>JPG, PNG, PDF</b> o una <b>captura</b>.
+      Cualquier formato sirve, porque el organizador lo baja y lo prepara para el diseno.
+      Limite de 4 MB por archivo.
     </div>
     <div class="fila" style="gap:8px;flex-wrap:wrap">
       <button class="btn chico verde" id="bHoja" style="flex:1;min-width:150px">Ver hoja de revision</button>
@@ -182,8 +182,6 @@ var token = ''
 var todos = []
 var resumen = {}
 var soloSinLogo = false
-var pxMin = 1772
-var medidaCm = 15
 var cacheLogo = {}
 
 function api(p, opt) {
@@ -251,15 +249,11 @@ function stats() {
   $('tPct').textContent = pct + '% cobrado de ' + resumen.total + ' puestos'
 }
 
-// Las reglas de tamano vienen del servidor, no estan escritas en la pagina:
-// asi el texto nunca se contradice con lo que realmente valida el backend.
+// El contador de logos pendientes viene del servidor: asi no hay que
+// calcularlo dos veces ni contradecirlo con lo que muestra la tabla.
 function cargaReglas() {
   api('/api/afiche/admin/logos').then(function (d) {
     if (!d.ok) return
-    pxMin = d.pxMin
-    medidaCm = d.medidaCm
-    $('pxMin').textContent = d.pxMin
-    $('pxInfo').textContent = d.medidaCm + ' cm'
     $('fFaltan').textContent = d.faltan.length + ' sin logo listo'
   })
 }
@@ -379,7 +373,7 @@ function urlLogo(r) {
 }
 
 function pintaLogo(r, html) {
-  if (!r.logo) {
+  if (!r.tieneLogo) {
     return '<div class="caja">sin logo</div>'
   }
   var v = '<' + (r.logoTipo.indexOf('PDF') === 0 ? 'iframe' : 'img') + ' src="' + urlLogo(r) + '">'
@@ -444,7 +438,6 @@ $('bSinLogo').onclick = function () {
 $('bHoja').onclick = function () {
   api('/api/afiche/admin/logos').then(function (d) {
     if (!d.ok) return
-    pxMin = d.pxMin
     var h = '<h2>Hoja de revision</h2><div class="sub2">' + d.faltan.length + ' puestos sin logo aprobado'
       + ' de ' + d.lista.length + '</div><div class="hoja">'
     if (!d.lista.length) {
@@ -479,7 +472,7 @@ function lgTexto(l) {
 function verLogo(r) {
   var lg = r.logoEstado || 'sin-logo'
   var h = '<h2>Puesto ' + r.puesto + '</h2><div class="sub2">' + (r.nombre || 'sin nombre') + '</div>'
-  if (r.logo) {
+  if (r.tieneLogo) {
     h += '<div class="prev">' + (r.logoTipo.indexOf('PDF') === 0
       ? '<iframe src="/api/afiche/admin/logo/' + r.puesto + '"></iframe>'
       : '<img src="/api/afiche/admin/logo/' + r.puesto + '">') + '</div>'
@@ -491,10 +484,10 @@ function verLogo(r) {
   if (lg === 'aprobado') h += '<div class="aviso ok">Aprobado: este logo ya se puede usar en el diseno.</div>'
   if (lg === 'recibido') h += '<div class="aviso ok">Revisalo. Cuando este bien, marcalo como aprobado.</div>'
 
-  h += '<label>Cambiar el archivo (PDF o PNG)</label>'
-  h += '<input type="file" id="fLogo" accept=".pdf,.svg,.png,application/pdf,image/png,image/svg+xml">'
+  h += '<label>Cambiar el archivo</label>'
+  h += '<input type="file" id="fLogo" accept="image/*,.pdf,.svg">'
   h += '<div class="msj" id="mUp"></div>'
-  if (r.logo) {
+  if (r.tieneLogo) {
     h += '<button class="btn chico ancho" id="bBajarLogo" style="margin-top:8px">Descargar el archivo original</button>'
     h += '<div class="fila" style="gap:8px;margin-top:6px">'
       + '<button class="btn chico verde aprobar" style="flex:1">Aprobar</button>'

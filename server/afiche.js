@@ -69,9 +69,15 @@ function asegurar() {
 }
 
 // Suma de abonos por puesto. El saldo nunca es negativo.
+// La columna 'logo' NO se trae aqui a proposito: son hasta 83 archivos de
+// varios MB cada uno, y esta consulta corre en cada abono. Leerlos todos
+// dejaria el servidor sin respuesta. El archivo se pide de a uno con
+// leerLogo() cuando hay que mostrarlo o descargarlo.
 function cargar() {
   return pool.query(
-    'SELECT p.*, COALESCE(SUM(a.monto),0) AS pagado,' +
+    'SELECT p.puesto, p.nombre, p.tel, p.estado, p.codigo, p.fecha,' +
+    ' p.logo_tipo, p.logo_px, p.logo_estado, p.logo_nota, p.logo_fecha,' +
+    ' COALESCE(SUM(a.monto),0) AS pagado,' +
     ' (SELECT COUNT(*) FROM abonos x WHERE x.puesto=p.puesto) AS n_abonos' +
     ' FROM puestos p LEFT JOIN abonos a ON a.puesto=p.puesto' +
     ' GROUP BY p.puesto'
@@ -84,6 +90,7 @@ function cargar() {
       // corrige sola. 'libre' solo cuando no hay nombre y no hay dinero.
       const nombre = f.nombre || ''
       const estado = pagado <= 0 ? (nombre ? 'apartado' : 'libre') : (pagado >= TOPE ? 'pagado' : 'apartado')
+      const logoEstado = f.logo_estado || 'sin-logo'
       puestos[f.puesto] = {
         puesto: f.puesto,
         nombre: nombre,
@@ -94,10 +101,12 @@ function cargar() {
         pagado: pagado,
         saldo: Math.max(0, TOPE - pagado),
         nAbonos: parseInt(f.n_abonos, 10) || 0,
-        logo: f.logo || '',
+        // El estado del logo si viaja (pesa nada) y dice si hay archivo,
+        // para no tener que bajar el archivo para saber si existe.
+        tieneLogo: logoEstado !== 'sin-logo',
         logoTipo: f.logo_tipo || '',
         logoPx: parseInt(f.logo_px, 10) || 0,
-        logoEstado: f.logo_estado || 'sin-logo',
+        logoEstado: logoEstado,
         logoNota: f.logo_nota || '',
         logoFecha: f.logo_fecha || ''
       }
@@ -107,6 +116,20 @@ function cargar() {
     estado.ultimoSync = Date.now()
     return puestos
   })
+}
+
+// El archivo de UN puesto. Es la unica forma de leer logos: nunca en bloque.
+function leerLogo(puesto) {
+  if (!pool) return Promise.reject(new Error('sin base de datos'))
+  return pool.query('SELECT logo FROM puestos WHERE puesto=$1', [puesto]).then(function (r) {
+    return (r.rows[0] && r.rows[0].logo) || ''
+  })
+}
+
+// Todos los archivos, solo para el respaldo descargable.
+function leerLogosTodos() {
+  if (!pool) return Promise.resolve([])
+  return pool.query("SELECT puesto, logo FROM puestos WHERE logo <> ''").then(function (r) { return r.rows })
 }
 
 function guardarPuesto(p) {
@@ -249,6 +272,8 @@ module.exports = {
   TOPE: TOPE,
   asegurar: asegurar,
   cargar: cargar,
+  leerLogo: leerLogo,
+  leerLogosTodos: leerLogosTodos,
   guardarPuesto: guardarPuesto,
   guardarLogo: guardarLogo,
   estadoLogo: estadoLogo,
