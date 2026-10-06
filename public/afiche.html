@@ -11,6 +11,15 @@
   header { text-align:center; margin-bottom:12px; }
   header h1 { font-size:26px; font-weight:800; letter-spacing:.02em; }
   header p { color:#8fa0b4; font-size:13px; margin-top:3px; }
+  header .portada { display:block; margin:14px auto 0; max-width:100%; max-height:48vh; width:auto;
+                    border-radius:14px; border:1px solid #2b3947; cursor:zoom-in; }
+  .ovImg { position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; align-items:center;
+           justify-content:center; padding:10px; z-index:10; cursor:zoom-out; }
+  .ovImg.on { display:flex; }
+  .ovImg img { max-width:100%; max-height:100%; border-radius:8px; }
+  .ovImg .cerrar { position:absolute; top:12px; right:14px; background:#26313d; color:#fff; border:0;
+                   border-radius:999px; width:38px; height:38px; font-size:20px; font-weight:800;
+                   cursor:pointer; line-height:1; }
   .barra { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:12px 0; }
   .chip { border:1px solid #26313d; background:#18222d; color:#cfe0f0; padding:8px 14px; border-radius:999px;
           font-size:13px; font-weight:700; cursor:pointer; }
@@ -56,7 +65,13 @@
 <header>
   <h1>afiche2027</h1>
   <p>83 puestos publicitarios - valor 55.000 cada uno</p>
+  <img class="portada" src="/afiche-modelo.jpg" alt="Modelo del afiche 2027" onclick="verPortada()">
 </header>
+
+<div class="ovImg" id="ovImg" onclick="cerrarPortada()">
+  <button class="cerrar" onclick="cerrarPortada()" aria-label="Cerrar">&times;</button>
+  <img src="/afiche-modelo.jpg" alt="Modelo del afiche 2027">
+</div>
 
 <div class="barra">
   <div class="chip on" data-f="todos">Todos</div>
@@ -87,6 +102,10 @@ function money(n) {
   var s = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   return '$' + s
 }
+
+// El modelo del afiche: se toca para verlo mas grande.
+function verPortada() { $('ovImg').classList.add('on') }
+function cerrarPortada() { $('ovImg').classList.remove('on') }
 
 // Sube el logo SIEMPRE despues de registrar el abono. Si el archivo falla, el
 // dinero ya quedo guardado: nunca se pierde un abono por un logo.
