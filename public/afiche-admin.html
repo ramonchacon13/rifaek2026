@@ -495,6 +495,7 @@ function verLogo(r) {
   h += '<input type="file" id="fLogo" accept=".pdf,.svg,.png,application/pdf,image/png,image/svg+xml">'
   h += '<div class="msj" id="mUp"></div>'
   if (r.logo) {
+    h += '<button class="btn chico ancho" id="bBajarLogo" style="margin-top:8px">Descargar el archivo original</button>'
     h += '<div class="fila" style="gap:8px;margin-top:6px">'
       + '<button class="btn chico verde aprobar" style="flex:1">Aprobar</button>'
       + '<button class="btn chico rechazar" style="flex:1">Rechazar</button>'
@@ -505,6 +506,37 @@ function verLogo(r) {
   $('modal').innerHTML = h
   $('ov').classList.add('on')
   $('bCerrarLogo').onclick = cierra
+
+  // Bajar el archivo tal cual se subio: es el que va a la imprenta.
+  var bj = $('bBajarLogo')
+  if (bj) bj.onclick = function () {
+    bj.disabled = true
+    fetch('/api/afiche/admin/logo/' + r.puesto, { headers: { 'X-Admin': token } })
+      .then(function (x) {
+        if (!x.ok) throw new Error('No se pudo descargar el archivo')
+        var ct = x.headers.get('Content-Type') || ''
+        var ext = ct.indexOf('pdf') >= 0 ? 'pdf' : (ct.indexOf('svg') >= 0 ? 'svg' : 'png')
+        return x.blob().then(function (b) { return { b: b, ext: ext } })
+      })
+      .then(function (o) {
+        var u = URL.createObjectURL(o.b)
+        var a = document.createElement('a')
+        a.href = u
+        a.download = 'logo-puesto-' + r.puesto + '.' + o.ext
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(function () { URL.revokeObjectURL(u) }, 5000)
+        bj.disabled = false
+        $('mUp').textContent = 'Archivo descargado'
+        $('mUp').className = 'msj ok'
+      })
+      .catch(function (e) {
+        bj.disabled = false
+        $('mUp').textContent = e.message
+        $('mUp').className = 'msj mal'
+      })
+  }
 
   var ap = $('aprobar')
   if (ap) ap.onclick = function () {

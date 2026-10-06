@@ -88,6 +88,28 @@ function money(n) {
   return '$' + s
 }
 
+// Sube el logo SIEMPRE despues de registrar el abono. Si el archivo falla, el
+// dinero ya quedo guardado: nunca se pierde un abono por un logo.
+function subeLogo(codigo, arch) {
+  if (!arch) return Promise.resolve({ ok: true, sinArchivo: true })
+  if (arch.size > 4 * 1024 * 1024) return Promise.resolve({ ok: false, error: 'El archivo pesa mas de 4 MB' })
+  return new Promise(function (res) {
+    var rd = new FileReader()
+    rd.onerror = function () { res({ ok: false, error: 'No se pudo leer el archivo' }) }
+    rd.onload = function () {
+      api('/api/afiche/mio/logo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: codigo, logo: rd.result }) })
+        .then(res, function () { res({ ok: false, error: 'No se pudo subir el archivo, intenta de nuevo' }) })
+    }
+    rd.readAsDataURL(arch)
+  })
+}
+
+function logTxt(lg) {
+  if (!lg || lg.sinArchivo) return ''
+  return lg.ok ? 'Logo recibido: ' + lg.tipo : (lg.error || 'No se pudo subir el logo')
+}
+
 function carga() {
   return api('/api/afiche/estado').then(function (d) {
     puestos = d.puestos
@@ -142,6 +164,8 @@ function abre(n) {
     h += '<label>Tu nombre</label><input id="fNombre" placeholder="Nombre y apellido">'
     h += '<label>Tu numero de telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
     h += '<label>Cuanto abonas ahora (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+    h += '<label>Logo del puesto (opcional)</label><input type="file" id="fLogo" accept=".pdf,.svg,.png,application/pdf,image/png,image/svg+xml">'
+    h += '<div class="nota">PDF vectorial o PNG. Si no lo tienes a la mano, subelo despues con tu codigo.</div>'
     h += '<div class="nota">Puedes apartar sin abonar ahora y pagar despues con tu codigo.</div>'
     h += '<button class="btn" id="bApartar">Apartar el ' + n + '</button>'
     h += '<div class="msj" id="m"></div>'
@@ -170,7 +194,10 @@ function abre(n) {
         body: JSON.stringify({ puesto: n, nombre: nom, tel: tel, abono: ab || 0 }) })
         .then(function (d) {
           if (!d.ok) { msg(d.error || 'No se pudo', 'mal'); bA.disabled = false; return }
-          exitoApartar(n, d.codigo, d.pagado, d.saldo)
+          msg('Guardando...', '')
+          subeLogo(d.codigo, $('fLogo').files[0]).then(function (lg) {
+            exitoApartar(n, d.codigo, d.pagado, d.saldo, lg)
+          })
         })
     }
   }
@@ -178,7 +205,7 @@ function abre(n) {
 
 function msg(t, c) { var m = $('m'); if (m) { m.textContent = t; m.className = 'msj ' + c } }
 
-function exitoApartar(n, c, pagado, saldo) {
+function exitoApartar(n, c, pagado, saldo, lg) {
   var et = pagado >= (resumen.topePorPuesto || 55000) ? 'pagado' : 'apartado'
   var etCol = et === 'pagado' ? 'var(--azul)' : 'var(--ambar)'
   var etTxt = et === 'pagado' ? 'PAGADO' : 'APARTADO'
@@ -186,61 +213,100 @@ function exitoApartar(n, c, pagado, saldo) {
     + '<div style="text-align:center;font-size:14px;line-height:1.6">Guarda tu codigo para abonar el resto:</div>'
     + '<div class="codigo">' + c + '</div>'
     + cajaSaldo({ pagado: pagado, saldo: saldo }, et)
+    + (lg && !lg.sinArchivo
+        ? '<div class="msj ' + (lg.ok ? 'ok' : 'mal') + '">' + logTxt(lg) + '</div>'
+        : '')
     + '<div class="nota">Envia el codigo al administrador para que registre tus abonos.</div>'
     + '<button class="btn" id="bListo">Listo</button>'
   $('bListo').onclick = function () { cierra(); carga() }
 }
 
-function pideCodigo() {
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+
+function pideCodigo(err) {
   $('modal').innerHTML = '<h2 style="font-size:22px">Mi codigo</h2>'
     + '<div style="text-align:center;font-size:13px;color:#8fa0b4;margin-bottom:10px">Escribe el codigo de 6 letras que te dimos</div>'
     + '<input id="cCod" placeholder="Ej: K7P2QB" style="text-transform:uppercase;text-align:center;font-size:20px;letter-spacing:.1em">'
     + '<button class="btn azul" id="bBuscar">Buscar</button><div class="msj" id="m"></div>'
   $('ov').classList.add('on')
+  if (err) msg(err, 'mal')
   $('bBuscar').onclick = function () {
     var c = $('cCod').value.trim().toUpperCase()
     if (!c) return
-    api('/api/afiche/mio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c }) })
-      .then(function (d) {
-        if (!d.ok) { msg(d.error || 'No encontrado', 'mal'); return }
-        var r = d.r
-        var etCol = r.estado === 'pagado' ? 'var(--azul)' : (r.estado === 'apartado' ? 'var(--ambar)' : 'var(--verde)')
-        var etTxt = r.estado === 'pagado' ? 'PAGADO' : (r.estado === 'apartado' ? 'CON ABONO' : 'DISPONIBLE')
-        var h = '<h2>' + r.puesto + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
-        h += '<div class="info" style="color:#cfe0f0;font-size:15px;text-align:center">' + (r.nombre || '') + '</div>'
-        h += cajaSaldo(r, r.estado)
-        if (r.estado !== 'pagado') {
-          h += '<label>Cuanto vas a abonar</label><input id="aMonto" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
-          h += '<button class="btn ambar" id="bAbonar">Registrar abono</button>'
-          h += '<div class="msj" id="m"></div>'
-        } else {
-          h += '<div class="nota">Este puesto ya esta pagado.</div>'
-        }
-        h += '<button class="btn sec" id="bCerrar">Cerrar</button>'
-        $('modal').innerHTML = h
-        $('bCerrar').onclick = cierra
+    muestraMi(c)
+  }
+}
 
-        var bAb = $('bAbonar')
-        if (bAb) {
-          bAb.onclick = function () {
-            var m = $('aMonto').value.trim()
-            if (!m) { msg('Escribe el monto', 'mal'); return }
-            bAb.disabled = true
-            api('/api/afiche/mio/abonar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ codigo: c, monto: m }) })
-              .then(function (x) {
-                if (!x.ok) { msg(x.error || 'Error', 'mal'); bAb.disabled = false; return }
-                var et2 = x.estado === 'pagado' ? 'pagado' : 'apartado'
-                var col2 = et2 === 'pagado' ? 'var(--azul)' : 'var(--ambar)'
-                $('modal').innerHTML = '<h2>' + x.puesto + '</h2><div class="estado" style="color:' + col2 + '">ABONO REGISTRADO</div>'
-                  + cajaSaldo({ pagado: x.pagado, saldo: x.saldo }, et2)
-                  + (et2 === 'pagado' ? '<div class="nota" style="color:#7fe0a0;font-size:13px">Este puesto quedo PAGADO.</div>' : '')
-                  + '<button class="btn" id="bListo">Listo</button>'
-                $('bListo').onclick = function () { cierra(); carga() }
-              })
-          }
+function muestraMi(c, aviso) {
+  api('/api/afiche/mio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c }) })
+    .then(function (d) {
+      if (!d.ok) { pideCodigo(d.error || 'Codigo no encontrado'); return }
+      pintaMi(c, d.r, aviso)
+    }, function () { pideCodigo('No se pudo conectar, intenta de nuevo') })
+}
+
+// El logo que el dueno o la vendedora ven con su codigo.
+function logoActual(r) {
+  if (!r.logo) return ''
+  var vis = r.logoTipo.indexOf('PDF') === 0
+    ? '<iframe src="' + r.logo + '" style="width:100%;height:130px;border:0;border-radius:10px;background:#fff"></iframe>'
+    : '<img src="' + r.logo + '" style="max-width:100%;max-height:130px;border-radius:10px">'
+  var t = r.logoEstado === 'aprobado' ? 'Tu logo ya quedo aprobado.'
+    : (r.logoEstado === 'rechazado' ? 'El logo fue rechazado: hay que subirlo de nuevo.'
+    : (r.logoEstado === 'recibido' ? 'Logo recibido, falta que lo revisen.' : ''))
+  return '<div class="nota" style="margin-top:14px">Tu logo:</div>'
+    + '<div style="text-align:center;margin-top:6px">' + vis + '</div>'
+    + (t ? '<div class="nota">' + t + '</div>' : '')
+    + (r.logoNota ? '<div class="nota" style="color:#ff9a9a">' + esc(r.logoNota) + '</div>' : '')
+}
+
+function pintaMi(c, r, aviso) {
+  var et = r.estado
+  var etCol = et === 'pagado' ? 'var(--azul)' : (et === 'apartado' ? 'var(--ambar)' : 'var(--verde)')
+  var etTxt = et === 'pagado' ? 'PAGADO' : (et === 'apartado' ? 'CON ABONO' : 'DISPONIBLE')
+  var h = '<h2>' + r.puesto + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
+  h += '<div class="info" style="color:#cfe0f0;font-size:15px;text-align:center">' + esc(r.nombre || '') + '</div>'
+  h += cajaSaldo(r, et)
+  h += logoActual(r)
+  if (et !== 'pagado') {
+    h += '<label>Cuanto vas a abonar</label><input id="aMonto" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+  }
+  h += '<label>Logo del puesto</label><input type="file" id="fLogo" accept=".pdf,.svg,.png,application/pdf,image/png,image/svg+xml">'
+  h += '<div class="nota">PDF vectorial o PNG grande. Puedes subirlo hoy o despues, siempre con tu codigo.</div>'
+  h += '<button class="btn ambar" id="bAbonar">' + (et === 'pagado' ? 'Subir logo' : 'Registrar abono y logo') + '</button>'
+  h += '<div class="msj" id="m"></div>'
+  h += '<button class="btn sec" id="bCerrar">Cerrar</button>'
+  $('modal').innerHTML = h
+  $('ov').classList.add('on')
+  $('bCerrar').onclick = cierra
+  if (aviso && aviso.t) msg(aviso.t, aviso.ok ? 'ok' : 'mal')
+
+  $('bAbonar').onclick = function () {
+    var m = $('aMonto') ? $('aMonto').value.trim() : ''
+    var arch = $('fLogo').files[0]
+    if (!m && !arch) { msg('Escribe el monto o elige tu logo', 'mal'); return }
+    var btn = $('bAbonar')
+    btn.disabled = true
+    msg('Guardando...', '')
+    // Primero el dinero, despues el archivo: un fallo del logo nunca deja el
+    // abono sin registrar.
+    var paso1 = m
+      ? api('/api/afiche/mio/abonar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codigo: c, monto: m }) })
+      : Promise.resolve({ ok: true, estado: r.estado, saldo: r.saldo })
+    paso1.then(function (x) {
+      if (!x.ok) { msg(x.error || 'No se pudo registrar el abono', 'mal'); btn.disabled = false; return }
+      subeLogo(c, arch).then(function (lg) {
+        var t = []
+        var bien = true
+        if (m) t.push('Abono registrado. Quedan ' + money(x.saldo))
+        if (lg && !lg.sinArchivo) {
+          if (lg.ok) t.push('Logo recibido: ' + lg.tipo)
+          else { t.push(lg.error || 'No se pudo subir el logo'); bien = false }
         }
+        muestraMi(c, { t: t.join('  ·  '), ok: bien })
       })
+    })
   }
 }
 

@@ -237,6 +237,7 @@ function leerLogoBinario(req) {
       let b
       try { b = JSON.parse(s || '{}') } catch (e) { return resolve({ error: 'no se pudo leer el archivo' }) }
       const puesto = b.puesto
+      const cod = String(b.codigo == null ? '' : b.codigo).trim().toUpperCase()
       const data = String(b.logo || '')
       const m = data.match(/^data:([a-z]+\/[a-z0-9.+-]+);base64,(.+)$/i)
       if (!m) return resolve({ error: 'formato de archivo no reconocido' })
@@ -249,7 +250,7 @@ function leerLogoBinario(req) {
       if (buf.length > MAX_BYTES) {
         return resolve({ error: 'el archivo pesa ' + Math.round(buf.length / 1024) + ' KB y el maximo son 4096 KB' })
       }
-      resolve({ ext: ext, mime: mime, buf: buf, dataUrl: data, puesto: puesto })
+      resolve({ ext: ext, mime: mime, buf: buf, dataUrl: data, puesto: puesto, codigo: cod })
     })
     req.on('error', () => resolve({ error: 'no se pudo leer el archivo' }))
   })
@@ -397,7 +398,14 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       for (const k in cache) {
         if (cache[k].codigo === c) {
           const r = cache[k]
-          return sendJson(res, { ok: true, r: { puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado, pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos } })
+          return sendJson(res, { ok: true, r: {
+            puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado,
+            pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos,
+            // El dueno y la vendedora ven su propio logo con el codigo. No lleva
+            // telefono ni codigo de otros: solo lo de su puesto.
+            logo: r.logo || '', logoTipo: r.logoTipo || '',
+            logoEstado: r.logoEstado || 'sin-logo', logoNota: r.logoNota || ''
+          } })
         }
       }
       return sendJson(res, { ok: false, error: 'codigo no encontrado' }, 404)
@@ -416,6 +424,37 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
         const r = cache[puesto] || {}
         return sendJson(res, { ok: true, puesto: puesto, pagado: r.pagado, saldo: r.saldo, estado: r.estado })
+      })
+    }).then(function () { return true }), true
+  }
+
+  // El dueño o la vendedora suben el logo con el codigo, al mismo tiempo que
+  // abonan. No lleva la clave de admin: alcanza con el codigo del puesto.
+  if (p === '/api/afiche/mio/logo' && req.method === 'POST') {
+    return leerLogoBinario(req).then(function (file) {
+      if (file.error) return sendJson(res, { ok: false, error: file.error }, 400)
+      const c = file.codigo
+      if (!c) return sendJson(res, { ok: false, error: 'falta el codigo' }, 400)
+      let n = null
+      for (const k in cache) if (cache[k].codigo === c) n = parseInt(k, 10)
+      if (n === null) return sendJson(res, { ok: false, error: 'codigo no encontrado' }, 404)
+      const r = cache[n] || {}
+      // El logo aprobado es el que va a imprimirse: desde afuera no se pisa.
+      // Si hay que cambiarlo, se hace desde el panel del administrador.
+      if (r.logoEstado === 'aprobado') {
+        return sendJson(res, { ok: false, error: 'Tu logo ya fue aprobado y no se puede reemplazar. Si necesitas cambiarlo, habla con el organizador.' }, 409)
+      }
+      const v = validaLogo(file.buf, file.ext)
+      if (!v.sirve) {
+        // Se guarda marcado como rechazado para que el organizador pueda mirarlo.
+        return guardaLogoArchivo(n, file, v, 'rechazado').then(function (ok) {
+          if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
+          return sendJson(res, { ok: false, error: v.aviso, tipo: v.tipo, px: v.px, guardado: true })
+        })
+      }
+      return guardaLogoArchivo(n, file, v, 'recibido').then(function (ok) {
+        if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
+        return sendJson(res, { ok: true, puesto: n, tipo: v.tipo, px: v.px })
       })
     }).then(function () { return true }), true
   }
