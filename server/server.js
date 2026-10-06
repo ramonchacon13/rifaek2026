@@ -406,7 +406,23 @@ const server = http.createServer(async (req, res) => {
   fs.readFile(fp, (err, data) => {
     if (err) return sendJson(res, { ok: false, error: 'no encontrado' }, 404)
     const ext = path.extname(fp).toLowerCase()
-    const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' }
+    // Sin el tipo correcto el navegador descarga el archivo en vez de
+    // mostrarlo, sobre todo en el celular. Lo que no se conoce sigue como
+    // octet-stream, que es lo seguro.
+    const types = {
+      '.html': 'text/html; charset=utf-8',
+      '.css': 'text/css; charset=utf-8',
+      '.js': 'text/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.pdf': 'application/pdf'
+    }
     res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
     res.end(data)
   })
