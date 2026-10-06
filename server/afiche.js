@@ -43,6 +43,20 @@ function asegurar() {
     'fecha TEXT NOT NULL DEFAULT \'\',' +
     'actualizado TEXT NOT NULL DEFAULT \'\')'
   ).then(function () {
+    // El logo se agrega con ALTER TABLE y no dentro del CREATE: la tabla 'puestos'
+    // ya existe en Neon con los datos, y recrearla seria perderlos.
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo TEXT NOT NULL DEFAULT \'\'')
+  }).then(function () {
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo_tipo TEXT NOT NULL DEFAULT \'\'')
+  }).then(function () {
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo_px INTEGER NOT NULL DEFAULT 0')
+  }).then(function () {
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo_estado TEXT NOT NULL DEFAULT \'sin-logo\'')
+  }).then(function () {
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo_nota TEXT NOT NULL DEFAULT \'\'')
+  }).then(function () {
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo_fecha TEXT NOT NULL DEFAULT \'\'')
+  }).then(function () {
     return pool.query(
       'CREATE TABLE IF NOT EXISTS abonos (' +
       'id SERIAL PRIMARY KEY,' +
@@ -79,7 +93,13 @@ function cargar() {
         fecha: f.fecha,
         pagado: pagado,
         saldo: Math.max(0, TOPE - pagado),
-        nAbonos: parseInt(f.n_abonos, 10) || 0
+        nAbonos: parseInt(f.n_abonos, 10) || 0,
+        logo: f.logo || '',
+        logoTipo: f.logo_tipo || '',
+        logoPx: parseInt(f.logo_px, 10) || 0,
+        logoEstado: f.logo_estado || 'sin-logo',
+        logoNota: f.logo_nota || '',
+        logoFecha: f.logo_fecha || ''
       }
     })
     estado.conectado = true
@@ -109,6 +129,47 @@ function guardarPuesto(p) {
     estado.errorEscritura = e.message
     estado.conectado = false
     console.log('Afiche fallo al guardar puesto ' + p.puesto + ': ' + e.message)
+    return false
+  })
+}
+
+// El logo se actualiza solo en sus propias columnas, sin tocar nombre ni abonos:
+// guardar el registro completo podria pisar un abono que entro al mismo tiempo.
+function guardarLogo(puesto, logo) {
+  return pool.query(
+    'UPDATE puestos SET logo=$1, logo_tipo=$2, logo_px=$3, logo_estado=$4,' +
+    ' logo_nota=$5, logo_fecha=$6, actualizado=$7 WHERE puesto=$8',
+    [logo.logo || '', logo.tipo || '', logo.px || 0, logo.estado || 'sin-logo',
+     logo.nota || '', logo.fecha || new Date().toISOString(), new Date().toISOString(), puesto]
+  ).then(function () {
+    estado.escrituraOk = true
+    estado.errorEscritura = ''
+    estado.conectado = true
+    estado.ultimoSync = Date.now()
+    return true
+  }).catch(function (e) {
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
+    estado.conectado = false
+    console.log('Afiche fallo al guardar el logo del puesto ' + puesto + ': ' + e.message)
+    return false
+  })
+}
+
+// Aprobar, rechazar o dejar pendiente sin volver a subir el archivo.
+function estadoLogo(puesto, est, nota) {
+  return pool.query(
+    'UPDATE puestos SET logo_estado=$1, logo_nota=$2, actualizado=$3 WHERE puesto=$4',
+    [est, nota || '', new Date().toISOString(), puesto]
+  ).then(function () {
+    estado.escrituraOk = true
+    estado.errorEscritura = ''
+    estado.conectado = true
+    estado.ultimoSync = Date.now()
+    return true
+  }).catch(function (e) {
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
     return false
   })
 }
@@ -189,6 +250,8 @@ module.exports = {
   asegurar: asegurar,
   cargar: cargar,
   guardarPuesto: guardarPuesto,
+  guardarLogo: guardarLogo,
+  estadoLogo: estadoLogo,
   borrarPuesto: borrarPuesto,
   anotarAbono: anotarAbono,
   leerAbonos: leerAbonos,
