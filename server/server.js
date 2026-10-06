@@ -3,6 +3,7 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const bd = require('./bd')
+const rutasAfiche = require('./afiche-rutas')
 
 const PORT = parseInt(process.env.PORT, 10) || 3260
 const DIR = __dirname
@@ -240,6 +241,13 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x')
   const p = u.pathname
 
+  // Modulo de afiche (83 puestos con abonos). Si la peticion es suya, ya quedo
+  // respondida aqui y el servidor no sigue al routing de la rifa.
+  if (p === '/api/afiche' || p.indexOf('/api/afiche/') === 0) {
+    const atendido = await rutasAfiche(req, res, p, esAdmin, sesiones)
+    if (atendido) return
+  }
+
   if (p === '/api/estado' && req.method === 'GET') {
     const out = {}
     for (let i = 0; i < TOTAL; i++) {
@@ -429,8 +437,11 @@ server.listen(PORT, '0.0.0.0', async () => {
     await restauraGit()
     cargaRemota()
   }
+  // Afiche: mismo Neon, tablas propias. Nunca toca la tabla 'reservas'.
+  await rutasAfiche.iniciar()
   pullPeriodico()
   console.log('Apartados 00-99 escuchando en 0.0.0.0:' + PORT)
+  console.log('Afiche 01-83 en /afiche.html  |  panel en /afiche-admin.html')
   console.log('Admin: /admin.html  clave: ' + (ES_RENDER ? '(definida en el servidor)' : ADMIN_PASS))
   console.log('Base de datos: ' + (bd.activo ? 'configurada, escritura ' + (salud.bd.escrituraOk === true ? 'OK' : 'FALLIDA') : 'NO CONFIGURADA') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
 })

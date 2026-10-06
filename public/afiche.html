@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>afiche2027</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root { --verde:#12a05c; --ambar:#e08a00; --azul:#2f7bd6; --gris:#8a97a6; }
+  body { font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:#0f1720; color:#eef3f8; padding:12px 10px 40px; }
+  header { text-align:center; margin-bottom:12px; }
+  header h1 { font-size:26px; font-weight:800; letter-spacing:.02em; }
+  header p { color:#8fa0b4; font-size:13px; margin-top:3px; }
+  .barra { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:12px 0; }
+  .chip { border:1px solid #26313d; background:#18222d; color:#cfe0f0; padding:8px 14px; border-radius:999px;
+          font-size:13px; font-weight:700; cursor:pointer; }
+  .chip.on { background:#2f7bd6; border-color:#2f7bd6; color:#fff; }
+  .cont { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; max-width:900px; margin:0 auto; }
+  .celda { background:#18222d; border:2px solid #26313d; border-radius:12px; padding:6px; text-align:center;
+           cursor:pointer; overflow:hidden; }
+  .celda .num { font-size:20px; font-weight:800; }
+  .celda .info { font-size:10px; color:#9fb0c3; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .celda .saldo { font-size:10px; margin-top:3px; font-weight:700; }
+  .celda.libre { border-color:#1d5c3f; }
+  .celda.libre .num { color:var(--verde); }
+  .celda.apartado { border-color:#6b4c14; }
+  .celda.apartado .num { color:var(--ambar); }
+  .celda.pagado { border-color:#24558c; }
+  .celda.pagado .num { color:var(--azul); }
+  .leyenda { max-width:900px; margin:18px auto 0; font-size:12px; color:#8fa0b4; text-align:center; line-height:1.7; }
+  .leyenda b { color:#cfe0f0; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; padding:14px; z-index:9; }
+  .overlay.on { display:flex; }
+  .modal { background:#18222d; border:1px solid #2b3947; border-radius:16px; width:100%; max-width:400px; max-height:92vh; overflow:auto; padding:18px; }
+  .modal h2 { font-size:34px; font-weight:800; text-align:center; }
+  .modal .estado { text-align:center; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:12px; }
+  .modal .info { color:#cfe0f0; font-size:15px; text-align:center; }
+  .resumen { display:flex; gap:8px; margin:14px 0; }
+  .resumen > div { flex:1; background:#0f1720; border:1px solid #2b3947; border-radius:10px; padding:10px 6px; text-align:center; }
+  .resumen .n { font-size:16px; font-weight:800; }
+  .resumen .l { font-size:9px; color:#8fa0b4; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+  label { display:block; font-size:12px; font-weight:700; color:#9fb0c3; margin:10px 0 4px; }
+  input { width:100%; padding:11px; border-radius:10px; border:1px solid #2b3947; background:#0f1720; color:#eef3f8; font-size:15px; }
+  .btn { width:100%; padding:13px; border-radius:12px; border:0; background:var(--verde); color:#fff; font-size:16px; font-weight:800; margin-top:14px; cursor:pointer; }
+  .btn.sec { background:#26313d; }
+  .btn.azul { background:var(--azul); }
+  .btn.ambar { background:var(--ambar); }
+  .msj { text-align:center; font-size:13px; margin-top:10px; min-height:18px; }
+  .msj.ok { color:#3ddc84; } .msj.mal { color:#ff6b6b; }
+  .codigo { font-size:22px; font-weight:800; letter-spacing:.12em; text-align:center; background:#0f1720;
+            border:1px dashed #2b3947; border-radius:10px; padding:12px; margin:10px 0; }
+  .nota { font-size:11px; color:#8fa0b4; text-align:center; margin-top:6px; line-height:1.6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>afiche2027</h1>
+  <p>83 puestos publicitarios - valor 55.000 cada uno</p>
+</header>
+
+<div class="barra">
+  <div class="chip on" data-f="todos">Todos</div>
+  <div class="chip" data-f="libre">Libres <span id="cLibre"></span></div>
+  <div class="chip" data-f="apartado">Con abono</div>
+  <div class="chip" data-f="pagado">Pagados</div>
+  <div class="chip" data-f="mio">Mi codigo</div>
+</div>
+
+<div class="cont" id="cont"></div>
+
+<div class="leyenda">
+  <b>Verde</b> libre &nbsp;·&nbsp; <b>Naranja</b> con abono, falta completar &nbsp;·&nbsp; <b>Azul</b> pagado<br>
+  Apartar un puesto abona dinero. Con el codigo puedes seguir abonado despues.
+</div>
+
+<div class="overlay" id="ov"><div class="modal" id="modal"></div></div>
+
+<script>
+var $ = function (id) { return document.getElementById(id) }
+var puestos = {}
+var resumen = {}
+var filtro = 'todos'
+
+function api(p, opt) { return fetch(p, opt).then(function (r) { return r.json() }) }
+function money(n) {
+  n = Number(n || 0)
+  var s = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return '$' + s
+}
+
+function carga() {
+  return api('/api/afiche/estado').then(function (d) {
+    puestos = d.puestos
+    resumen = d.resumen
+    var libres = 0
+    for (var k in puestos) if (puestos[k].estado === 'libre') libres++
+    $('cLibre').textContent = '(' + libres + ')'
+    pinta()
+  })
+}
+
+function pinta() {
+  var c = $('cont')
+  c.innerHTML = ''
+  for (var i = 1; i <= 83; i++) {
+    var r = puestos[i] || { estado: 'libre', pagado: 0, saldo: resumen.topePorPuesto || 55000 }
+    if (filtro !== 'todos' && r.estado !== filtro) continue
+    var d = document.createElement('div')
+    d.className = 'celda ' + r.estado
+    var html = '<div class="num">' + i + '</div>'
+    if (r.estado === 'libre') {
+      html += '<div class="info">disponible</div>'
+    } else {
+      html += '<div class="info">' + (r.nombre || 'sin nombre') + '</div>'
+      html += '<div class="saldo" style="color:' + (r.estado === 'pagado' ? '#5aa9ff' : '#ffb020') + '">'
+        + (r.estado === 'pagado' ? 'completo' : 'falta ' + money(r.saldo)) + '</div>'
+    }
+    d.innerHTML = html
+    d.setAttribute('data-n', i)
+    d.onclick = function () { abre(this.getAttribute('data-n')) }
+    c.appendChild(d)
+  }
+}
+
+function cajaSaldo(p, et) {
+  return '<div class="resumen">'
+    + '<div><div class="n" style="color:var(--verde)">' + money(p.pagado) + '</div><div class="l">abonado</div></div>'
+    + '<div><div class="n" style="color:' + (et === 'pagado' ? '#5aa9ff' : '#ffb020') + '">'
+    + (et === 'pagado' ? 'completo' : money(p.saldo)) + '</div><div class="l">'
+    + (et === 'pagado' ? 'puesto pagado' : 'falta') + '</div></div>'
+    + '</div>'
+}
+
+function abre(n) {
+  var r = puestos[n] || { estado: 'libre', pagado: 0, saldo: 55000 }
+  var et = r.estado
+  var etTxt = et === 'libre' ? 'DISPONIBLE' : (et === 'apartado' ? 'CON ABONO' : 'PAGADO')
+  var etCol = et === 'libre' ? 'var(--verde)' : (et === 'apartado' ? 'var(--ambar)' : 'var(--azul)')
+  var h = '<h2>' + n + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
+
+  if (et === 'libre') {
+    h += '<label>Tu nombre</label><input id="fNombre" placeholder="Nombre y apellido">'
+    h += '<label>Tu numero de telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+    h += '<label>Cuanto abonas ahora (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+    h += '<div class="nota">Puedes apartar sin abonar ahora y pagar despues con tu codigo.</div>'
+    h += '<button class="btn" id="bApartar">Apartar el ' + n + '</button>'
+    h += '<div class="msj" id="m"></div>'
+  } else {
+    h += '<div class="info" style="color:#cfe0f0;font-size:15px;text-align:center">' + (r.nombre || '') + '</div>'
+    h += cajaSaldo(r, et)
+    h += '<div class="nota">Este puesto ya tiene due&ntilde;o.</div>'
+    h += '<button class="btn sec" id="bCerrar">Cerrar</button>'
+  }
+  $('modal').innerHTML = h
+  $('ov').classList.add('on')
+
+  var bC = $('bCerrar')
+  if (bC) bC.onclick = cierra
+
+  var bA = $('bApartar')
+  if (bA) {
+    bA.onclick = function () {
+      var nom = $('fNombre').value.trim()
+      if (!nom) { msg('Escribe tu nombre', 'mal'); return }
+      var tel = $('fTel').value.trim()
+      if (!tel) { msg('Escribe tu numero de telefono', 'mal'); return }
+      var ab = $('fAbono').value.trim()
+      bA.disabled = true
+      api('/api/afiche/apartar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puesto: n, nombre: nom, tel: tel, abono: ab || 0 }) })
+        .then(function (d) {
+          if (!d.ok) { msg(d.error || 'No se pudo', 'mal'); bA.disabled = false; return }
+          exitoApartar(n, d.codigo, d.pagado, d.saldo)
+        })
+    }
+  }
+}
+
+function msg(t, c) { var m = $('m'); if (m) { m.textContent = t; m.className = 'msj ' + c } }
+
+function exitoApartar(n, c, pagado, saldo) {
+  var et = pagado >= (resumen.topePorPuesto || 55000) ? 'pagado' : 'apartado'
+  var etCol = et === 'pagado' ? 'var(--azul)' : 'var(--ambar)'
+  var etTxt = et === 'pagado' ? 'PAGADO' : 'APARTADO'
+  $('modal').innerHTML = '<h2>' + n + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
+    + '<div style="text-align:center;font-size:14px;line-height:1.6">Guarda tu codigo para abonar el resto:</div>'
+    + '<div class="codigo">' + c + '</div>'
+    + cajaSaldo({ pagado: pagado, saldo: saldo }, et)
+    + '<div class="nota">Envia el codigo al administrador para que registre tus abonos.</div>'
+    + '<button class="btn" id="bListo">Listo</button>'
+  $('bListo').onclick = function () { cierra(); carga() }
+}
+
+function pideCodigo() {
+  $('modal').innerHTML = '<h2 style="font-size:22px">Mi codigo</h2>'
+    + '<div style="text-align:center;font-size:13px;color:#8fa0b4;margin-bottom:10px">Escribe el codigo de 6 letras que te dimos</div>'
+    + '<input id="cCod" placeholder="Ej: K7P2QB" style="text-transform:uppercase;text-align:center;font-size:20px;letter-spacing:.1em">'
+    + '<button class="btn azul" id="bBuscar">Buscar</button><div class="msj" id="m"></div>'
+  $('ov').classList.add('on')
+  $('bBuscar').onclick = function () {
+    var c = $('cCod').value.trim().toUpperCase()
+    if (!c) return
+    api('/api/afiche/mio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: c }) })
+      .then(function (d) {
+        if (!d.ok) { msg(d.error || 'No encontrado', 'mal'); return }
+        var r = d.r
+        var etCol = r.estado === 'pagado' ? 'var(--azul)' : (r.estado === 'apartado' ? 'var(--ambar)' : 'var(--verde)')
+        var etTxt = r.estado === 'pagado' ? 'PAGADO' : (r.estado === 'apartado' ? 'CON ABONO' : 'DISPONIBLE')
+        var h = '<h2>' + r.puesto + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
+        h += '<div class="info" style="color:#cfe0f0;font-size:15px;text-align:center">' + (r.nombre || '') + '</div>'
+        h += cajaSaldo(r, r.estado)
+        if (r.estado !== 'pagado') {
+          h += '<label>Cuanto vas a abonar</label><input id="aMonto" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+          h += '<button class="btn ambar" id="bAbonar">Registrar abono</button>'
+          h += '<div class="msj" id="m"></div>'
+        } else {
+          h += '<div class="nota">Este puesto ya esta pagado.</div>'
+        }
+        h += '<button class="btn sec" id="bCerrar">Cerrar</button>'
+        $('modal').innerHTML = h
+        $('bCerrar').onclick = cierra
+
+        var bAb = $('bAbonar')
+        if (bAb) {
+          bAb.onclick = function () {
+            var m = $('aMonto').value.trim()
+            if (!m) { msg('Escribe el monto', 'mal'); return }
+            bAb.disabled = true
+            api('/api/afiche/mio/abonar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ codigo: c, monto: m }) })
+              .then(function (x) {
+                if (!x.ok) { msg(x.error || 'Error', 'mal'); bAb.disabled = false; return }
+                var et2 = x.estado === 'pagado' ? 'pagado' : 'apartado'
+                var col2 = et2 === 'pagado' ? 'var(--azul)' : 'var(--ambar)'
+                $('modal').innerHTML = '<h2>' + x.puesto + '</h2><div class="estado" style="color:' + col2 + '">ABONO REGISTRADO</div>'
+                  + cajaSaldo({ pagado: x.pagado, saldo: x.saldo }, et2)
+                  + (et2 === 'pagado' ? '<div class="nota" style="color:#7fe0a0;font-size:13px">Este puesto quedo PAGADO.</div>' : '')
+                  + '<button class="btn" id="bListo">Listo</button>'
+                $('bListo').onclick = function () { cierra(); carga() }
+              })
+          }
+        }
+      })
+  }
+}
+
+function cierra() { $('ov').classList.remove('on') }
+$('ov').onclick = function (e) { if (e.target === $('ov')) cierra() }
+
+Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
+  c.onclick = function () {
+    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (x) { x.classList.remove('on') })
+    c.classList.add('on')
+    filtro = c.getAttribute('data-f')
+    if (filtro === 'mio') { pideCodigo(); filtro = 'todos' } else pinta()
+  }
+})
+
+carga()
+setInterval(carga, 5000)
+</script>
+</body>
+</html>

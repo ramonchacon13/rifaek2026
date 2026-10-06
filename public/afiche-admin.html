@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>afiche2027 - Panel</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  :root { --verde:#12a05c; --ambar:#e08a00; --azul:#2f7bd6; --rojo:#d94a4a; }
+  body { font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:#0f1720; color:#eef3f8; padding:14px 12px 50px; }
+  h1 { font-size:22px; font-weight:800; margin-bottom:4px; }
+  .sub { color:#8fa0b4; font-size:13px; margin-bottom:16px; }
+  .card { background:#18222d; border:1px solid #2b3947; border-radius:14px; padding:16px; margin-bottom:14px; }
+  .oculto { display:none; }
+  label { display:block; font-size:12px; font-weight:700; color:#9fb0c3; margin:10px 0 4px; }
+  input, select { width:100%; padding:11px; border-radius:10px; border:1px solid #2b3947; background:#0f1720; color:#eef3f8; font-size:15px; }
+  .fila { display:flex; gap:10px; }
+  .fila > div { flex:1; }
+  .btn { padding:12px; border-radius:12px; border:0; background:var(--azul); color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+  .btn.verde { background:var(--verde); }
+  .btn.ambar { background:var(--ambar); }
+  .btn.rojo { background:var(--rojo); }
+  .btn.chico { padding:8px 12px; font-size:12px; }
+  .btn.ancho { width:100%; }
+  .msj { text-align:center; font-size:13px; margin-top:10px; min-height:18px; }
+  .msj.ok { color:#3ddc84; } .msj.mal { color:#ff6b6b; }
+  .stats { display:flex; gap:8px; text-align:center; margin-bottom:14px; flex-wrap:wrap; }
+  .stat { flex:1; min-width:88px; background:#18222d; border:1px solid #2b3947; border-radius:12px; padding:12px 6px; }
+  .stat .n { font-size:19px; font-weight:800; }
+  .stat .l { font-size:10px; color:#8fa0b4; text-transform:uppercase; letter-spacing:.05em; }
+  .total { background:#0f1720; border:1px solid #2b3947; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .total .f { display:flex; justify-content:space-between; font-size:14px; padding:5px 0; }
+  .total .f b { font-weight:800; }
+  .barraCobro { height:10px; background:#26313d; border-radius:999px; overflow:hidden; margin:10px 0 4px; }
+  .barraCobro > div { height:100%; background:var(--verde); border-radius:999px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; color:#8fa0b4; text-transform:uppercase; padding:8px 6px; border-bottom:1px solid #2b3947; }
+  td { padding:9px 6px; border-bottom:1px solid #1c2733; vertical-align:middle; }
+  .pill { font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px; text-transform:uppercase; white-space:nowrap; }
+  .pill.libre { background:#123a2a; color:#3ddc84; }
+  .pill.apartado { background:#3a2c12; color:#ffb020; }
+  .pill.pagado { background:#122a45; color:#5aa9ff; }
+  .buscar { display:flex; gap:8px; margin-bottom:12px; }
+  .buscar input { flex:1; }
+  .scroll { overflow-x:auto; }
+  .volver { text-align:center; margin-top:14px; font-size:13px; color:#8fa0b4; }
+  .volver a { color:#5aa9ff; }
+</style>
+</head>
+<body>
+<h1>afiche2027</h1>
+<div class="sub">83 puestos publicitarios - panel para registrar abonos</div>
+
+<div class="card" id="login">
+  <label>Clave de administrador</label>
+  <input type="password" id="pass" placeholder="Clave" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button class="btn verde ancho" id="bLogin" style="margin-top:14px">Entrar</button>
+  <div class="msj" id="mLogin"></div>
+</div>
+
+<div id="panel" class="oculto">
+  <div id="salud" class="sub" style="margin-bottom:10px"></div>
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="sLibre" style="color:var(--verde)">0</div><div class="l">Libres</div></div>
+    <div class="stat"><div class="n" id="sApart" style="color:var(--ambar)">0</div><div class="l">Con abono</div></div>
+    <div class="stat"><div class="n" id="sPag" style="color:var(--azul)">0</div><div class="l">Pagados</div></div>
+    <div class="stat"><div class="n" id="sDue" style="color:var(--rojo)">0</div><div class="l">Sin dueño</div></div>
+  </div>
+
+  <div class="total">
+    <div class="f"><span>Cobrado</span><b id="tCob" style="color:var(--verde)">$0</b></div>
+    <div class="f"><span>Falta por cobrar (con dueño)</span><b id="tDebe" style="color:var(--ambar)">$0</b></div>
+    <div class="f"><span>Meta total (83 x 55.000)</span><b id="tMeta">$0</b></div>
+    <div class="barraCobro"><div id="barra" style="width:0%"></div></div>
+    <div style="text-align:center;font-size:11px;color:#8fa0b4" id="tPct">0% cobrado</div>
+  </div>
+
+  <div class="card">
+    <div class="sub" style="margin:0 0 6px;font-weight:800;color:#eef3f8">Apartar puesto</div>
+    <div class="fila">
+      <div><label>Puesto</label><select id="fPuesto"></select></div>
+      <div><label>Nombre del cliente</label><input id="fNombre" placeholder="Nombre y apellido"></div>
+    </div>
+    <label>Telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\D+/g,'')">
+    <label>Primer abono (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\D+/g,'')">
+    <button class="btn verde ancho" id="bApartar">Apartar puesto</button>
+    <div class="msj" id="mApartar"></div>
+  </div>
+
+  <div class="card">
+    <div class="sub" style="margin:0 0 6px;font-weight:800;color:#eef3f8">Registrar abono</div>
+    <div class="fila">
+      <div><label>Puesto</label><select id="aPuesto"></select></div>
+      <div><label>Monto</label><input id="aMonto" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\D+/g,'')"></div>
+    </div>
+    <label>Nota (opcional)</label><input id="aNota" placeholder="Ej: abono en efectivo">
+    <button class="btn ambar ancho" id="bAbonar">Registrar abono</button>
+    <div class="msj" id="mAbonar"></div>
+  </div>
+
+  <div class="card">
+    <div class="sub" style="margin:0 0 10px;font-weight:800;color:#eef3f8">Historial de abonos</div>
+    <div class="scroll" style="max-height:240px;overflow-y:auto"><table id="tHist">
+      <thead><tr><th>Puesto</th><th>Monto</th><th>Nota</th></tr></thead>
+      <tbody id="tbHist"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="fila" style="gap:8px">
+      <button class="btn chico" id="bDescargar" style="flex:1">Descargar respaldo</button>
+      <button class="btn chico" id="bRefrescar" style="flex:1">Actualizar</button>
+    </div>
+    <div class="msj" id="mRespaldo"></div>
+  </div>
+
+  <div class="card">
+    <div class="buscar"><input id="q" placeholder="Buscar por nombre, telefono o puesto..."></div>
+    <div class="scroll"><table id="tabla">
+      <thead><tr><th>Puesto</th><th>Nombre</th><th>Telefono</th><th>Abonado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="volver"><a href="/afiche.html">Ver el afiche publico</a> · <a href="/admin.html">Panel de la rifa</a></div>
+</div>
+
+<script>
+var $ = function (id) { return document.getElementById(id) }
+var token = ''
+var todos = []
+var resumen = {}
+
+function api(p, opt) {
+  opt = opt || {}
+  if (token) { opt.headers = opt.headers || {}; opt.headers['X-Admin'] = token }
+  return fetch(p, opt).then(function (r) { return r.json() })
+}
+
+function money(n) {
+  n = Number(n || 0)
+  return '$' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+$('bLogin').onclick = function () {
+  api('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass: $('pass').value }) })
+    .then(function (d) {
+      if (!d.ok) { $('mLogin').textContent = d.error; $('mLogin').className = 'msj mal'; return }
+      token = d.token
+      $('login').classList.add('oculto')
+      $('panel').classList.remove('oculto')
+      llenaPuestos()
+      carga()
+      salud()
+    })
+}
+$('pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('bLogin').click() })
+
+function llenaPuestos() {
+  ;['fPuesto', 'aPuesto'].forEach(function (id) {
+    var s = $(id)
+    for (var i = 1; i <= 83; i++) {
+      var o = document.createElement('option')
+      o.value = i
+      o.text = i
+      s.appendChild(o)
+    }
+  })
+}
+
+function carga() {
+  api('/api/afiche/admin/lista').then(function (d) {
+    if (!d.ok) return
+    todos = d.todos
+    resumen = d.resumen
+    stats()
+    pinta()
+  })
+  salud()
+  historial()
+}
+
+function stats() {
+  if (!resumen.total) return
+  $('sLibre').textContent = resumen.libre
+  $('sApart').textContent = resumen.apartado
+  $('sPag').textContent = resumen.pagado
+  $('sDue').textContent = resumen.libre
+  $('tCob').textContent = money(resumen.cobrado)
+  $('tDebe').textContent = money(resumen.porCobrar)
+  $('tMeta').textContent = money(resumen.metaTotal)
+  var pct = resumen.metaTotal ? Math.round((resumen.cobrado / resumen.metaTotal) * 100) : 0
+  if (pct > 100) pct = 100
+  $('barra').style.width = pct + '%'
+  $('tPct').textContent = pct + '% cobrado de ' + resumen.total + ' puestos'
+}
+
+function historial() {
+  api('/api/afiche/admin/abonos').then(function (d) {
+    if (!d.ok) return
+    var tb = $('tbHist')
+    tb.innerHTML = ''
+    if (!d.abonos.length) {
+      tb.innerHTML = '<tr><td colspan="3" style="color:#8fa0b4;text-align:center">Todavia no hay abonos</td></tr>'
+      return
+    }
+    d.abonos.slice(0, 60).forEach(function (a) {
+      var tr = document.createElement('tr')
+      tr.innerHTML = '<td><b>' + a.puesto + '</b></td><td style="color:var(--verde);font-weight:800">' + money(a.monto) + '</td><td>' + (a.nota || '') + '</td>'
+      tb.appendChild(tr)
+    })
+  })
+}
+
+function mins(ms) {
+  if (!ms) return 'nunca'
+  var m = Math.floor((Date.now() - ms) / 60000)
+  if (m < 1) return 'hace menos de 1 min'
+  if (m < 60) return 'hace ' + m + ' min'
+  return 'hace ' + Math.floor(m / 60) + ' h'
+}
+
+function salud() {
+  api('/api/afiche/admin/salud').then(function (d) {
+    if (!d.ok) return
+    var e = $('salud')
+    var b = d.bd
+    if (!b.activo) {
+      e.innerHTML = '<span style="color:#ff8f8f">FALTA DATABASE_URL: los abonos NO se estan guardando.</span>'
+      return
+    }
+    if (b.escrituraOk === false) {
+      e.innerHTML = '<span style="color:#ff8f8f">NO SE ESTAN GUARDANDO LOS ABONOS: ' + (b.errorEscritura || 'error desconocido') + '</span>'
+      return
+    }
+    if (b.escrituraOk === null) {
+      e.innerHTML = '<span style="color:#ffcc66">Base conectada, falta probar la escritura.</span>'
+      return
+    }
+    e.innerHTML = '<span style="color:#7fe0a0">Afiche guardado en la base de datos (ultimo: ' + mins(b.ultimoSync) + ')</span>'
+  })
+}
+
+$('bRefrescar').onclick = function () { carga() }
+
+$('bDescargar').onclick = function () {
+  fetch('/api/afiche/admin/descargar', { headers: { 'X-Admin': token } }).then(function (r) {
+    if (!r.ok) { $('mRespaldo').textContent = 'No se pudo descargar'; $('mRespaldo').className = 'msj mal'; return }
+    return r.blob()
+  }).then(function (b) {
+    if (!b) return
+    var url = URL.createObjectURL(b)
+    var a = document.createElement('a')
+    a.href = url
+    a.download = 'afiche-' + new Date().toISOString().slice(0, 10) + '.json'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    $('mRespaldo').textContent = 'Respaldo descargado'
+    $('mRespaldo').className = 'msj ok'
+  })
+}
+
+$('bApartar').onclick = function () {
+  var nom = $('fNombre').value.trim()
+  if (!nom) { $('mApartar').textContent = 'Escribe el nombre'; $('mApartar').className = 'msj mal'; return }
+  var tel = $('fTel').value.trim()
+  if (!tel) { $('mApartar').textContent = 'Escribe el telefono'; $('mApartar').className = 'msj mal'; return }
+  var ab = $('fAbonar').value.trim()
+  var btn = $('bApartar')
+  btn.disabled = true
+  api('/api/afiche/apartar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ puesto: $('fPuesto').value, nombre: nom, tel: tel, abono: ab || 0 }) })
+    .then(function (d) {
+      btn.disabled = false
+      if (!d.ok) { $('mApartar').textContent = d.error; $('mApartar').className = 'msj mal'; return }
+      $('mApartar').textContent = 'Puesto ' + d.puesto + ' apartado'
+      $('mApartar').className = 'msj ok'
+      $('fNombre').value = ''; $('fTel').value = ''; $('fAbono').value = ''
+      $('fPuesto').value = d.puesto
+      carga()
+    })
+}
+
+$('bAbonar').onclick = function () {
+  var m = $('aMonto').value.trim()
+  if (!m) { $('mAbonar').textContent = 'Escribe el monto'; $('mAbonar').className = 'msj mal'; return }
+  var btn = $('bAbonar')
+  btn.disabled = true
+  api('/api/afiche/admin/abonar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ puesto: $('aPuesto').value, monto: m, nota: $('aNota').value.trim() }) })
+    .then(function (d) {
+      btn.disabled = false
+      if (!d.ok) { $('mAbonar').textContent = d.error; $('mAbonar').className = 'msj mal'; return }
+      $('mAbonar').textContent = 'Abono registrado. Quedan ' + money(d.saldo)
+      $('mAbonar').className = 'msj ok'
+      $('aMonto').value = ''; $('aNota').value = ''
+      carga()
+    })
+}
+
+function pinta() {
+  var q = $('q').value.trim().toLowerCase()
+  var tb = $('tbody')
+  tb.innerHTML = ''
+  todos.filter(function (r) {
+    if (!q) return true
+    return (r.nombre || '').toLowerCase().indexOf(q) >= 0 || (r.tel || '').indexOf(q) >= 0 || String(r.puesto).indexOf(q) >= 0
+  }).forEach(function (r) {
+    var tr = document.createElement('tr')
+    tr.innerHTML = '<td><b>' + r.puesto + '</b></td><td>' + (r.nombre || '-') + '</td>'
+      + '<td>' + (r.tel || '-') + '</td>'
+      + '<td style="color:var(--verde);font-weight:800">' + money(r.pagado) + '</td>'
+      + '<td style="color:' + (r.estado === 'pagado' ? '#5aa9ff' : '#ffb020') + ';font-weight:800">' + (r.estado === 'pagado' ? '-' : money(r.saldo)) + '</td>'
+      + '<td><span class="pill ' + r.estado + '">' + (r.estado === 'pagado' ? 'pagado' : (r.estado === 'apartado' ? 'con abono' : 'libre')) + '</span></td>'
+      + '<td style="white-space:nowrap"><button class="btn chico ab">Abonar</button> <button class="btn chico rojo lib">Liberar</button></td>'
+    tr.querySelector('.ab').onclick = function () {
+      var m = prompt('Monto del abono para el puesto ' + r.puesto + ' (faltan ' + money(r.saldo) + '):', r.saldo)
+      if (!m) return
+      api('/api/afiche/admin/abonar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puesto: r.puesto, monto: m, nota: 'abono' }) })
+        .then(function (d) {
+          if (!d.ok) { alert(d.error); return }
+          alert('Abono registrado. Saldo: ' + money(d.saldo))
+          carga()
+        })
+    }
+    tr.querySelector('.lib').onclick = function () {
+      if (!confirm('Liberar el puesto ' + r.puesto + ' de ' + r.nombre + '?\n\nSe borrara su nombre y TODOS sus abonos.\nEl dinero ya cobrado no se devuelve.')) return
+      api('/api/afiche/admin/liberar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ puesto: r.puesto }) })
+        .then(function (d) {
+          if (!d.ok) { alert(d.error); return }
+          carga()
+        })
+    }
+    tb.appendChild(tr)
+  })
+}
+
+$('q').addEventListener('input', pinta)
+
+setInterval(function () { if (token) carga() }, 20000)
+</script>
+</body>
+</html>

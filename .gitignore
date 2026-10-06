@@ -1,4 +1,5 @@
 server/datos.json
+server/afiche.json
 server/snapshots/
 node_modules/
 .env
