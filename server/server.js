@@ -161,12 +161,23 @@ function sincroniza() {
 function guardar(d, numero, borrado) {
   fs.writeFileSync(DATA, JSON.stringify(d, null, 2), 'utf8')
   snapshot()
+  // Sin base de datos no hay almacenamiento durable: devolvemos false para que
+  // el cliente NO reciba un "listo" que se perderia al reiniciar el servicio.
+  let p = Promise.resolve(false)
   if (bd.activo) {
-    if (borrado && numero) bd.borrar(numero)
-    else if (numero) bd.guardar(d.numeros[numero])
+    if (borrado && numero) p = bd.borrar(numero)
+    else if (numero) p = bd.guardar(d.numeros[numero])
   }
   if (GH_TOKEN) empujaGithub()
   if (SYNC_URL) { salud.pendiente = true; sincroniza() }
+  return p
+}
+
+const SIN_BASE = 'no se pudo guardar en la base de datos, intenta de nuevo en un momento'
+
+function revierte() {
+  fs.writeFileSync(DATA, JSON.stringify(db, null, 2), 'utf8')
+  snapshot()
 }
 
 function pullPeriodico() {
@@ -250,7 +261,12 @@ const server = http.createServer(async (req, res) => {
     if (!tel) return sendJson(res, { ok: false, error: 'escribe tu numero de telefono (solo digitos)' }, 400)
     const c = codigo()
     db.numeros[n] = { n, nombre, apto: '', tel, foto: '', estado: 'apartado', codigo: c, fecha: new Date().toISOString() }
-    guardar(db, n)
+    const ok = await guardar(db, n)
+    if (ok === false) {
+      db.numeros[n] = actual
+      revierte()
+      return sendJson(res, { ok: false, error: SIN_BASE }, 503)
+    }
     return sendJson(res, { ok: true, numero: n, codigo: c })
   }
 
@@ -275,7 +291,8 @@ const server = http.createServer(async (req, res) => {
         r.nombre = String(b.nombre || r.nombre).trim().slice(0, 60)
         r.tel = soloDigitos(b.tel != null ? b.tel : r.tel, 20)
         r.apto = ''
-        guardar(db, n)
+        const ok = await guardar(db, n)
+        if (ok === false) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
         return sendJson(res, { ok: true })
       }
     }
@@ -348,7 +365,8 @@ const server = http.createServer(async (req, res) => {
       fecha: prev.fecha || new Date().toISOString()
     }
     if (db.numeros[n].estado === 'libre' && !db.numeros[n].nombre) delete db.numeros[n]
-    guardar(db, n, true)
+    const ok = await guardar(db, n, true)
+    if (ok === false) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
     return sendJson(res, { ok: true })
   }
 
@@ -356,7 +374,7 @@ const server = http.createServer(async (req, res) => {
     if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401)
     const b = await leerBody(req)
     const n = numOk(b.numero)
-    if (n !== null) { delete db.numeros[n]; guardar(db, n, true) }
+    if (n !== null) { delete db.numeros[n]; const ok = await guardar(db, n, true); if (ok === false) return sendJson(res, { ok: false, error: SIN_BASE }, 503) }
     return sendJson(res, { ok: true })
   }
 
@@ -370,7 +388,8 @@ const server = http.createServer(async (req, res) => {
     r.estado = est
     if (!r.nombre && est === 'libre') delete db.numeros[n]
     else db.numeros[n] = r
-    guardar(db, n, !r.nombre && est === 'libre')
+    const ok = await guardar(db, n, !r.nombre && est === 'libre')
+    if (ok === false) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
     return sendJson(res, { ok: true })
   }
 
