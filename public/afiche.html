@@ -76,7 +76,7 @@
 <div class="barra">
   <div class="chip on" data-f="todos">Todos</div>
   <div class="chip" data-f="libre">Libres <span id="cLibre"></span></div>
-  <div class="chip" data-f="apartado">Con abono</div>
+  <div class="chip" data-f="apartado">Apartados</div>
   <div class="chip" data-f="pagado">Pagados</div>
   <div class="chip" data-f="mio">Mi codigo</div>
 </div>
@@ -84,8 +84,8 @@
 <div class="cont" id="cont"></div>
 
 <div class="leyenda">
-  <b>Verde</b> libre &nbsp;·&nbsp; <b>Naranja</b> con abono, falta completar &nbsp;·&nbsp; <b>Azul</b> pagado<br>
-  Apartar un puesto abona dinero. Con el codigo puedes seguir abonado despues.
+  <b>Verde</b> libre &nbsp;·&nbsp; <b>Naranja</b> apartado, falta completar &nbsp;·&nbsp; <b>Azul</b> pagado<br>
+  Al apartar puedes dejar tu primer abono. Los siguientes los registra el organizador con tu codigo.
 </div>
 
 <div class="overlay" id="ov"><div class="modal" id="modal"></div></div>
@@ -107,8 +107,8 @@ function money(n) {
 function verPortada() { $('ovImg').classList.add('on') }
 function cerrarPortada() { $('ovImg').classList.remove('on') }
 
-// Sube el logo SIEMPRE despues de registrar el abono. Si el archivo falla, el
-// dinero ya quedo guardado: nunca se pierde un abono por un logo.
+// Sube el logo con el codigo del puesto. El archivo va aparte del dinero: si el
+// archivo falla, el apartado (y cualquier abono del organizador) sigue en pie.
 function subeLogo(codigo, arch) {
   if (!arch) return Promise.resolve({ ok: true, sinArchivo: true })
   if (arch.size > 4 * 1024 * 1024) return Promise.resolve({ ok: false, error: 'El archivo pesa mas de 4 MB' })
@@ -182,10 +182,10 @@ function abre(n) {
   if (et === 'libre') {
     h += '<label>Tu nombre</label><input id="fNombre" placeholder="Nombre y apellido">'
     h += '<label>Tu numero de telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
-    h += '<label>Cuanto abonas ahora (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
+    h += '<label>Primer abono (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
     h += '<label>Logo del puesto (opcional)</label><input type="file" id="fLogo" accept="image/*,.pdf,.svg">'
     h += '<div class="nota">JPG, PNG, PDF o captura. Si no lo tienes a la mano, subelo despues con tu codigo.</div>'
-    h += '<div class="nota">Puedes apartar sin abonar ahora y pagar despues con tu codigo.</div>'
+    h += '<div class="nota">Si ya pagaste algo, dejalo aqui. Los siguientes aportes los registra el organizador con tu codigo.</div>'
     h += '<button class="btn" id="bApartar">Apartar el ' + n + '</button>'
     h += '<div class="msj" id="m"></div>'
   } else {
@@ -229,13 +229,13 @@ function exitoApartar(n, c, pagado, saldo, lg) {
   var etCol = et === 'pagado' ? 'var(--azul)' : 'var(--ambar)'
   var etTxt = et === 'pagado' ? 'PAGADO' : 'APARTADO'
   $('modal').innerHTML = '<h2>' + n + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
-    + '<div style="text-align:center;font-size:14px;line-height:1.6">Guarda tu codigo para abonar el resto:</div>'
+    + '<div style="text-align:center;font-size:14px;line-height:1.6">Guarda tu codigo: con el subes tu logo y consultas tu saldo.</div>'
     + '<div class="codigo">' + c + '</div>'
     + cajaSaldo({ pagado: pagado, saldo: saldo }, et)
     + (lg && !lg.sinArchivo
         ? '<div class="msj ' + (lg.ok ? 'ok' : 'mal') + '">' + logTxt(lg) + '</div>'
         : '')
-    + '<div class="nota">Envia el codigo al administrador para que registre tus abonos.</div>'
+    + '<div class="nota">Envia el codigo al organizador para que registre tus abonos.</div>'
     + '<button class="btn" id="bListo">Listo</button>'
   $('bListo').onclick = function () { cierra(); carga() }
 }
@@ -288,14 +288,13 @@ function pintaMi(c, r, aviso) {
   var etTxt = et === 'pagado' ? 'PAGADO' : (et === 'apartado' ? 'CON ABONO' : 'DISPONIBLE')
   var h = '<h2>' + r.puesto + '</h2><div class="estado" style="color:' + etCol + '">' + etTxt + '</div>'
   h += '<div class="info" style="color:#cfe0f0;font-size:15px;text-align:center">' + esc(r.nombre || '') + '</div>'
+  h += '<div class="nota">Precio del puesto: ' + money(r.precio) + '</div>'
   h += cajaSaldo(r, et)
   h += logoActual(r)
-  if (et !== 'pagado') {
-    h += '<label>Cuanto vas a abonar</label><input id="aMonto" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\\D+/g,\'\')">'
-  }
   h += '<label>Logo del puesto</label><input type="file" id="fLogo" accept="image/*,.pdf,.svg">'
   h += '<div class="nota">JPG, PNG, PDF o captura. Puedes subirlo hoy o despues, siempre con tu codigo.</div>'
-  h += '<button class="btn ambar" id="bAbonar">' + (et === 'pagado' ? 'Subir logo' : 'Registrar abono y logo') + '</button>'
+  h += '<button class="btn ambar" id="bLogo">Subir logo</button>'
+  h += '<div class="nota">Para abonar, envia tu codigo al organizador. El registra cada abono desde el panel.</div>'
   h += '<div class="msj" id="m"></div>'
   h += '<button class="btn sec" id="bCerrar">Cerrar</button>'
   $('modal').innerHTML = h
@@ -303,31 +302,15 @@ function pintaMi(c, r, aviso) {
   $('bCerrar').onclick = cierra
   if (aviso && aviso.t) msg(aviso.t, aviso.ok ? 'ok' : 'mal')
 
-  $('bAbonar').onclick = function () {
-    var m = $('aMonto') ? $('aMonto').value.trim() : ''
+  $('bLogo').onclick = function () {
     var arch = $('fLogo').files[0]
-    if (!m && !arch) { msg('Escribe el monto o elige tu logo', 'mal'); return }
-    var btn = $('bAbonar')
+    if (!arch) { msg('Elige tu logo', 'mal'); return }
+    var btn = $('bLogo')
     btn.disabled = true
     msg('Guardando...', '')
-    // Primero el dinero, despues el archivo: un fallo del logo nunca deja el
-    // abono sin registrar.
-    var paso1 = m
-      ? api('/api/afiche/mio/abonar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ codigo: c, monto: m }) })
-      : Promise.resolve({ ok: true, estado: r.estado, saldo: r.saldo })
-    paso1.then(function (x) {
-      if (!x.ok) { msg(x.error || 'No se pudo registrar el abono', 'mal'); btn.disabled = false; return }
-      subeLogo(c, arch).then(function (lg) {
-        var t = []
-        var bien = true
-        if (m) t.push('Abono registrado. Quedan ' + money(x.saldo))
-        if (lg && !lg.sinArchivo) {
-          if (lg.ok) t.push('Logo recibido: ' + lg.tipo)
-          else { t.push(lg.error || 'No se pudo subir el logo'); bien = false }
-        }
-        muestraMi(c, { t: t.join('  ·  '), ok: bien })
-      })
+    subeLogo(c, arch).then(function (lg) {
+      if (lg.ok) muestraMi(c, { t: 'Logo recibido: ' + lg.tipo, ok: true })
+      else muestraMi(c, { t: lg.error || 'No se pudo subir el logo', ok: false })
     })
   }
 }

@@ -96,7 +96,7 @@
 
   <div class="stats">
     <div class="stat"><div class="n" id="sLibre" style="color:var(--verde)">0</div><div class="l">Libres</div></div>
-    <div class="stat"><div class="n" id="sApart" style="color:var(--ambar)">0</div><div class="l">Con abono</div></div>
+    <div class="stat"><div class="n" id="sApart" style="color:var(--ambar)">0</div><div class="l">Apartados</div></div>
     <div class="stat"><div class="n" id="sPag" style="color:var(--azul)">0</div><div class="l">Pagados</div></div>
     <div class="stat"><div class="n" id="sDue" style="color:var(--rojo)">0</div><div class="l">Sin dueño</div></div>
   </div>
@@ -104,7 +104,7 @@
   <div class="total">
     <div class="f"><span>Cobrado</span><b id="tCob" style="color:var(--verde)">$0</b></div>
     <div class="f"><span>Falta por cobrar (con dueño)</span><b id="tDebe" style="color:var(--ambar)">$0</b></div>
-    <div class="f"><span>Meta total (83 x 55.000)</span><b id="tMeta">$0</b></div>
+    <div class="f"><span>Meta total (suma de los precios)</span><b id="tMeta">$0</b></div>
     <div class="barraCobro"><div id="barra" style="width:0%"></div></div>
     <div style="text-align:center;font-size:11px;color:#8fa0b4" id="tPct">0% cobrado</div>
   </div>
@@ -116,6 +116,7 @@
       <div><label>Nombre del cliente</label><input id="fNombre" placeholder="Nombre y apellido"></div>
     </div>
     <label>Telefono</label><input id="fTel" placeholder="Solo digitos" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value=this.value.replace(/\D+/g,'')">
+    <label>Precio del puesto (dejalo en 55.000 salvo oferta o canje)</label><input id="fPrecio" placeholder="55000" inputmode="numeric" pattern="[0-9]*" value="55000" oninput="this.value=this.value.replace(/\D+/g,'')">
     <label>Primer abono (opcional)</label><input id="fAbono" placeholder="Ej: 20000" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/\D+/g,'')">
     <button class="btn verde ancho" id="bApartar">Apartar puesto</button>
     <div class="msj" id="mApartar"></div>
@@ -166,7 +167,7 @@
     <div class="buscar"><input id="q" placeholder="Buscar por nombre, telefono, puesto...">
       <button class="btn chico" id="bSinLogo" style="white-space:nowrap">Solo sin logo</button></div>
     <div class="scroll"><table id="tabla">
-      <thead><tr><th>Puesto</th><th>Logo</th><th>Nombre</th><th>Telefono</th><th>Abonado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead>
+      <thead><tr><th>Puesto</th><th>Logo</th><th>Nombre</th><th>Telefono</th><th>Precio</th><th>Abonado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead>
       <tbody id="tbody"></tbody>
     </table></div>
   </div>
@@ -330,17 +331,18 @@ $('bApartar').onclick = function () {
   if (!nom) { $('mApartar').textContent = 'Escribe el nombre'; $('mApartar').className = 'msj mal'; return }
   var tel = $('fTel').value.trim()
   if (!tel) { $('mApartar').textContent = 'Escribe el telefono'; $('mApartar').className = 'msj mal'; return }
-  var ab = $('fAbonar').value.trim()
+  var ab = $('fAbono').value.trim()
+  var precio = $('fPrecio').value.trim()
   var btn = $('bApartar')
   btn.disabled = true
   api('/api/afiche/apartar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ puesto: $('fPuesto').value, nombre: nom, tel: tel, abono: ab || 0 }) })
+    body: JSON.stringify({ puesto: $('fPuesto').value, nombre: nom, tel: tel, abono: ab || 0, precio: precio || 55000 }) })
     .then(function (d) {
       btn.disabled = false
       if (!d.ok) { $('mApartar').textContent = d.error; $('mApartar').className = 'msj mal'; return }
-      $('mApartar').textContent = 'Puesto ' + d.puesto + ' apartado'
+      $('mApartar').textContent = 'Puesto ' + d.puesto + ' apartado (precio ' + money(d.precio) + ')'
       $('mApartar').className = 'msj ok'
-      $('fNombre').value = ''; $('fTel').value = ''; $('fAbono').value = ''
+      $('fNombre').value = ''; $('fTel').value = ''; $('fAbono').value = ''; $('fPrecio').value = '55000'
       $('fPuesto').value = d.puesto
       carga()
     })
@@ -396,13 +398,27 @@ function pinta() {
       + '<td class="logoC">' + pintaLogo(r) + '</td>'
       + '<td>' + (r.nombre || '-') + '</td>'
       + '<td>' + (r.tel || '-') + '</td>'
+      + '<td>' + money(r.precio) + '</td>'
       + '<td style="color:var(--verde);font-weight:800">' + money(r.pagado) + '</td>'
       + '<td style="color:' + (r.estado === 'pagado' ? '#5aa9ff' : '#ffb020') + ';font-weight:800">' + (r.estado === 'pagado' ? '-' : money(r.saldo)) + '</td>'
       + '<td><span class="pill ' + r.estado + '">' + (r.estado === 'pagado' ? 'pagado' : (r.estado === 'apartado' ? 'con abono' : 'libre')) + '</span></td>'
       + '<td style="white-space:nowrap">'
       + '<button class="btn chico ver">Logo</button> '
-      + '<button class="btn chico ab">Abonar</button> <button class="btn chico rojo lib">Liberar</button></td>'
+      + '<button class="btn chico ab">Abonar</button> '
+      + '<button class="btn chico pre">Precio</button> '
+      + '<button class="btn chico rojo lib">Liberar</button></td>'
     tr.querySelector('.ver').onclick = function () { verLogo(r) }
+    tr.querySelector('.pre').onclick = function () {
+      var p = prompt('Precio del puesto ' + r.puesto + ' (actual ' + money(r.precio) + '):', r.precio)
+      if (p === null || p === '') return
+      api('/api/afiche/admin/precio', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puesto: r.puesto, precio: p }) })
+        .then(function (d) {
+          if (!d.ok) { alert(d.error); return }
+          alert('Precio actualizado. Nuevo saldo: ' + money(d.saldo))
+          carga()
+        })
+    }
     tr.querySelector('.ab').onclick = function () {
       var m = prompt('Monto del abono para el puesto ' + r.puesto + ' (faltan ' + money(r.saldo) + '):', r.saldo)
       if (!m) return

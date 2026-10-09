@@ -53,6 +53,13 @@ function montoOk(v) {
   return m
 }
 
+// El precio de un puesto puede ser 0 (canje o regalo) o cualquier monto mayor.
+function precioOk(v) {
+  const m = parseInt(v, 10)
+  if (isNaN(m) || m < 0 || m > 5e7) return null
+  return m
+}
+
 function codigo() {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let s = ''
@@ -60,31 +67,41 @@ function codigo() {
   return s
 }
 
-function baseVacia() {
-  return { puesto: 0, nombre: '', tel: '', estado: 'libre', codigo: '', fecha: '', pagado: 0, saldo: TOPE, nAbonos: 0 }
+// Precio de un puesto: el suyo, o el de siempre si todavia no tiene fila.
+function precioDe(p) {
+  return p && p.precio != null ? p.precio : TOPE
 }
 
-// Estado derivado del saldo, no un campo que se pueda desincronizar:
+function baseVacia() {
+  return { puesto: 0, nombre: '', tel: '', estado: 'libre', codigo: '', fecha: '', precio: TOPE, pagado: 0, saldo: TOPE, nAbonos: 0 }
+}
+
+// Estado derivado del saldo contra el precio de ESE puesto, no un campo que se
+// pueda desincronizar:
+//   precio 0 (canje)   -> pagado
 //   sin abono          -> libre
 //   abono parcial      -> apartado
 //   abono completo     -> pagado
-function deriva(pagado, nombre) {
+function deriva(pagado, nombre, precio) {
+  const tope = precio != null ? precio : TOPE
+  if (tope <= 0) return 'pagado'
   if (pagado <= 0) return nombre ? 'apartado' : 'libre'
-  if (pagado >= TOPE) return 'pagado'
+  if (pagado >= tope) return 'pagado'
   return 'apartado'
 }
 
 // Lo que ve el publico: sin telefono y sin codigo.
 function publico(p) {
-  return { puesto: p.puesto, nombre: p.nombre, estado: p.estado, pagado: p.pagado, saldo: p.saldo }
+  return { puesto: p.puesto, nombre: p.nombre, estado: p.estado, precio: precioDe(p), pagado: p.pagado, saldo: p.saldo }
 }
 
 // Totales del afiche. El 'cobrado' es la suma real de abonos; el 'por cobrar'
 // es lo que falta para completar todos los puestos que ya tienen_dueno.
 function resumen(puestos) {
-  let libre = 0, apartado = 0, pagado = 0, cobrado = 0, porCobrar = 0, conDueno = 0
+  let libre = 0, apartado = 0, pagado = 0, cobrado = 0, porCobrar = 0, conDueno = 0, metaTotal = 0
   for (let i = 1; i <= TOTAL; i++) {
     const p = puestos[i] || baseVacia()
+    metaTotal += precioDe(p)
     if (p.estado === 'pagado') pagado++
     else if (p.estado === 'apartado') apartado++
     else libre++
@@ -100,7 +117,7 @@ function resumen(puestos) {
     cobrado: cobrado,
     porCobrar: porCobrar,
     topePorPuesto: TOPE,
-    metaTotal: TOTAL * TOPE
+    metaTotal: metaTotal
   }
 }
 
@@ -257,15 +274,17 @@ function archivoListo() {
 // Cada operacion devuelve un booleano: true solo si la base confirmo.
 // El servidor usa ese booleano para no mentirle al cliente.
 
-function opApartar(p, nombre, tel, abonoInicial) {
+function opApartar(p, nombre, tel, abonoInicial, precio) {
   const pagadoInicial = abonoInicial || 0
+  const tope = precio != null ? precio : TOPE
   const reg = {
     puesto: p,
     nombre: nombre,
     tel: tel,
-    estado: deriva(pagadoInicial, nombre),
+    estado: deriva(pagadoInicial, nombre, tope),
     codigo: codigo(),
-    fecha: new Date().toISOString()
+    fecha: new Date().toISOString(),
+    precio: tope
   }
   if (!afiche.activo) return Promise.resolve(false)
   return afiche.guardarPuesto(reg).then(function (ok) {
@@ -297,8 +316,19 @@ function opEditar(p, nombre, tel) {
     tel: tel,
     estado: actual.estado,
     codigo: actual.codigo,
-    fecha: actual.fecha
+    fecha: actual.fecha,
+    precio: precioDe(actual)
   }).then(function (ok) {
+    if (ok) return cargarBase().then(function () { return true })
+    return false
+  })
+}
+
+// Cambia el precio de un puesto ya apartado (una oferta, una correccion).
+function opPrecio(p, precio) {
+  if (!afiche.activo) return Promise.resolve(false)
+  if (!cache[p]) return Promise.resolve(false)
+  return afiche.guardarPrecio(p, precio).then(function (ok) {
     if (ok) return cargarBase().then(function () { return true })
     return false
   })
@@ -337,15 +367,26 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       const tel = soloDigitos(b.tel, 20)
       if (!nombre) return sendJson(res, { ok: false, error: 'escribe tu nombre' }, 400)
       if (!tel) return sendJson(res, { ok: false, error: 'escribe tu numero de telefono (solo digitos)' }, 400)
+      // El primer abono lo deja quien aparta (por eso vuelve a estar en la pagina
+      // publica). El precio, en cambio, solo lo fija el organizador: desde la
+      // pagina publica siempre es el de siempre (ofertas aparte). Los abonos
+      // siguientes solo los registra el panel (/api/afiche/admin/abonar).
       let abono = 0
       if (b.abono != null && String(b.abono).trim() !== '') {
         abono = montoOk(b.abono)
         if (abono === null) return sendJson(res, { ok: false, error: 'el abono no es un monto valido' }, 400)
       }
-      return opApartar(n, nombre, tel, abono).then(function (ok) {
+      // El precio solo lo fija el organizador (ofertas, canjes). Desde la pagina
+      // publica siempre es el de siempre.
+      let precio = TOPE
+      if (esAdmin(req) && b.precio != null && String(b.precio).trim() !== '') {
+        precio = precioOk(b.precio)
+        if (precio === null) return sendJson(res, { ok: false, error: 'el precio no es un monto valido' }, 400)
+      }
+      return opApartar(n, nombre, tel, abono, precio).then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
         const r = cache[n] || {}
-        return sendJson(res, { ok: true, puesto: n, codigo: r.codigo || '', pagado: r.pagado || 0, saldo: r.saldo != null ? r.saldo : TOPE })
+        return sendJson(res, { ok: true, puesto: n, codigo: r.codigo || '', precio: r.precio != null ? r.precio : TOPE, pagado: r.pagado || 0, saldo: r.saldo != null ? r.saldo : TOPE })
       })
     }).then(function () { return true }), true
   }
@@ -360,6 +401,7 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
           return afiche.leerLogo(r.puesto).then(function (blob) {
             return sendJson(res, { ok: true, r: {
               puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado,
+              precio: r.precio != null ? r.precio : TOPE,
               pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos,
               // El dueno y la vendedora ven su propio logo con el codigo. No lleva
               // telefono ni codigo de otros: solo lo de su puesto.
@@ -370,6 +412,7 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
             // Si el archivo no se pudo leer, el resto del puesto sigue sirviendo.
             return sendJson(res, { ok: true, r: {
               puesto: r.puesto, nombre: r.nombre, tel: r.tel || '', estado: r.estado,
+              precio: r.precio != null ? r.precio : TOPE,
               pagado: r.pagado, saldo: r.saldo, nAbonos: r.nAbonos,
               logo: '', logoTipo: r.logoTipo || '',
               logoEstado: r.logoEstado || 'sin-logo', logoNota: r.logoNota || ''
@@ -382,23 +425,17 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
   }
 
   if (p === '/api/afiche/mio/abonar' && req.method === 'POST') {
-    return leerBody(req).then(function (b) {
-      const c = String(b.codigo || '').trim().toUpperCase()
-      let puesto = null
-      for (const k in cache) if (cache[k].codigo === c) puesto = parseInt(k, 10)
-      if (puesto === null) return sendJson(res, { ok: false, error: 'codigo no encontrado' }, 404)
-      const monto = montoOk(b.monto)
-      if (monto === null) return sendJson(res, { ok: false, error: 'escribe un monto valido' }, 400)
-      return opAbonar(puesto, monto, 'abono del cliente').then(function (ok) {
-        if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-        const r = cache[puesto] || {}
-        return sendJson(res, { ok: true, puesto: puesto, pagado: r.pagado, saldo: r.saldo, estado: r.estado })
-      })
+    // Cerrado a proposito: los abonos los registra el organizador desde el panel
+    // (/api/afiche/admin/abonar). Antes el cliente podia anotarse un abono con su
+    // solo codigo y el sistema lo daba por bueno; eso ya no ocurre.
+    return leerBody(req).then(function () {
+      return sendJson(res, { ok: false, error: 'los abonos los registra el organizador desde el panel' }, 403)
     }).then(function () { return true }), true
   }
 
-  // El dueño o la vendedora suben el logo con el codigo, al mismo tiempo que
-  // abonan. No lleva la clave de admin: alcanza con el codigo del puesto.
+  // El dueño o la vendedora suben el logo con el codigo. No lleva la clave de
+  // admin: alcanza con el codigo del puesto. (El dinero, en cambio, solo lo
+  // registra el organizador desde el panel.)
   if (p === '/api/afiche/mio/logo' && req.method === 'POST') {
     return leerLogoBinario(req).then(function (file) {
       if (file.error) return sendJson(res, { ok: false, error: file.error }, 400)
@@ -480,6 +517,23 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       return opEditar(n, nombre, tel).then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
         return sendJson(res, { ok: true })
+      })
+    }).then(function () { return true }), true
+  }
+
+  // Precio de un puesto ya apartado (oferta, canje, correccion). Solo admin.
+  if (p === '/api/afiche/admin/precio' && req.method === 'POST') {
+    if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
+    return leerBody(req).then(function (b) {
+      const n = puestoOk(b.puesto)
+      if (n === null) return sendJson(res, { ok: false, error: 'numero de puesto invalido' }, 400)
+      if (!cache[n]) return sendJson(res, { ok: false, error: 'ese puesto no esta en uso' }, 404)
+      const precio = precioOk(b.precio)
+      if (precio === null) return sendJson(res, { ok: false, error: 'el precio no es un monto valido' }, 400)
+      return opPrecio(n, precio).then(function (ok) {
+        if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
+        const r = cache[n] || {}
+        return sendJson(res, { ok: true, puesto: n, precio: r.precio, saldo: r.saldo, estado: r.estado })
       })
     }).then(function () { return true }), true
   }

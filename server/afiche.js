@@ -57,6 +57,11 @@ function asegurar() {
   }).then(function () {
     return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS logo_fecha TEXT NOT NULL DEFAULT \'\'')
   }).then(function () {
+    // Precio por puesto. Por defecto el de siempre (TOPE); el organizador puede
+    // bajarlo o subirlo en un puesto puntual (ofertas, canjes) desde el panel.
+    // Las filas que ya existian quedan en 55000.
+    return pool.query('ALTER TABLE puestos ADD COLUMN IF NOT EXISTS precio INTEGER NOT NULL DEFAULT ' + TOPE)
+  }).then(function () {
     return pool.query(
       'CREATE TABLE IF NOT EXISTS abonos (' +
       'id SERIAL PRIMARY KEY,' +
@@ -75,7 +80,7 @@ function asegurar() {
 // leerLogo() cuando hay que mostrarlo o descargarlo.
 function cargar() {
   return pool.query(
-    'SELECT p.puesto, p.nombre, p.tel, p.estado, p.codigo, p.fecha,' +
+    'SELECT p.puesto, p.nombre, p.tel, p.estado, p.codigo, p.fecha, p.precio,' +
     ' p.logo_tipo, p.logo_px, p.logo_estado, p.logo_nota, p.logo_fecha,' +
     ' COALESCE(SUM(a.monto),0) AS pagado,' +
     ' (SELECT COUNT(*) FROM abonos x WHERE x.puesto=p.puesto) AS n_abonos' +
@@ -85,11 +90,15 @@ function cargar() {
     const puestos = {}
     r.rows.forEach(function (f) {
       const pagado = parseInt(f.pagado, 10) || 0
-      // El estado se deriva SIEMPRE de la suma de abonos. Nunca se lee de la
-      // columna 'estado': si alguien la edita a mano o queda desfasada, aqui se
-      // corrige sola. 'libre' solo cuando no hay nombre y no hay dinero.
+      const precio = parseInt(f.precio, 10) || TOPE
+      // El estado se deriva SIEMPRE de la suma de abonos contra el precio de ESE
+      // puesto. Nunca se lee de la columna 'estado': si alguien la edita a mano o
+      // queda desfasada, aqui se corrige sola. 'libre' solo cuando no hay nombre
+      // ni dinero. Un puesto de precio 0 (canje) nace y vive 'pagado'.
       const nombre = f.nombre || ''
-      const estado = pagado <= 0 ? (nombre ? 'apartado' : 'libre') : (pagado >= TOPE ? 'pagado' : 'apartado')
+      const estado = precio <= 0 ? 'pagado'
+        : pagado <= 0 ? (nombre ? 'apartado' : 'libre')
+        : (pagado >= precio ? 'pagado' : 'apartado')
       const logoEstado = f.logo_estado || 'sin-logo'
       puestos[f.puesto] = {
         puesto: f.puesto,
@@ -98,8 +107,9 @@ function cargar() {
         estado: estado,
         codigo: f.codigo,
         fecha: f.fecha,
+        precio: precio,
         pagado: pagado,
-        saldo: Math.max(0, TOPE - pagado),
+        saldo: Math.max(0, precio - pagado),
         nAbonos: parseInt(f.n_abonos, 10) || 0,
         // El estado del logo si viaja (pesa nada) y dice si hay archivo,
         // para no tener que bajar el archivo para saber si existe.
@@ -134,13 +144,13 @@ function leerLogosTodos() {
 
 function guardarPuesto(p) {
   return pool.query(
-    'INSERT INTO puestos (puesto, nombre, tel, estado, codigo, fecha, actualizado)' +
-    ' VALUES ($1,$2,$3,$4,$5,$6,$7)' +
+    'INSERT INTO puestos (puesto, nombre, tel, estado, codigo, fecha, precio, actualizado)' +
+    ' VALUES ($1,$2,$3,$4,$5,$6,$7,$8)' +
     ' ON CONFLICT (puesto) DO UPDATE SET nombre=EXCLUDED.nombre, tel=EXCLUDED.tel,' +
     ' estado=EXCLUDED.estado, codigo=EXCLUDED.codigo, fecha=EXCLUDED.fecha,' +
-    ' actualizado=EXCLUDED.actualizado',
+    ' precio=EXCLUDED.precio, actualizado=EXCLUDED.actualizado',
     [p.puesto, p.nombre || '', p.tel || '', p.estado || 'libre', p.codigo || '',
-     p.fecha || '', new Date().toISOString()]
+     p.fecha || '', (p.precio != null ? p.precio : TOPE), new Date().toISOString()]
   ).then(function () {
     estado.escrituraOk = true
     estado.errorEscritura = ''
@@ -152,6 +162,27 @@ function guardarPuesto(p) {
     estado.errorEscritura = e.message
     estado.conectado = false
     console.log('Afiche fallo al guardar puesto ' + p.puesto + ': ' + e.message)
+    return false
+  })
+}
+
+// Cambia solo el precio del puesto. Vale tanto para la oferta inicial como para
+// corregirlo despues; el estado y el saldo se recalculan solos al leer.
+function guardarPrecio(puesto, precio) {
+  return pool.query(
+    'UPDATE puestos SET precio=$1, actualizado=$2 WHERE puesto=$3',
+    [precio, new Date().toISOString(), puesto]
+  ).then(function () {
+    estado.escrituraOk = true
+    estado.errorEscritura = ''
+    estado.conectado = true
+    estado.ultimoSync = Date.now()
+    return true
+  }).catch(function (e) {
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
+    estado.conectado = false
+    console.log('Afiche fallo al guardar el precio del puesto ' + puesto + ': ' + e.message)
     return false
   })
 }
@@ -275,6 +306,7 @@ module.exports = {
   leerLogo: leerLogo,
   leerLogosTodos: leerLogosTodos,
   guardarPuesto: guardarPuesto,
+  guardarPrecio: guardarPrecio,
   guardarLogo: guardarLogo,
   estadoLogo: estadoLogo,
   borrarPuesto: borrarPuesto,
