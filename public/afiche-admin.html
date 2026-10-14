@@ -44,6 +44,8 @@
   .pill.recibido { background:#3a2c12; color:#ffb020; }
   .pill.rechazado { background:#3a1414; color:#ff8f8f; }
   .pill['sin-logo'], .sinlogo { background:#1c2733; color:#8a97a6; }
+  .pill.inicial { background:#123a2a; color:#3ddc84; }
+  tr.inicial td { background:#122a20; }
   td.logoC { width:60px; }
   td.logoC .caja { width:46px; height:46px; border-radius:8px; background:#0d141c; border:1px solid #26313d;
                     display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:9px; color:#6b7a8c; }
@@ -270,9 +272,13 @@ function historial() {
     }
     d.abonos.slice(0, 60).forEach(function (a) {
       var tr = document.createElement('tr')
+      // El primer abono (el que dejo quien aparto) se marca aparte para
+      // ubicarlo de un vistazo en el historial.
+      var inicial = String(a.nota || '').trim().toLowerCase() === 'abono inicial'
+      if (inicial) tr.className = 'inicial'
       tr.innerHTML = '<td><b>' + a.puesto + '</b></td>'
         + '<td style="color:var(--verde);font-weight:800">' + money(a.monto) + '</td>'
-        + '<td>' + esc(a.nota || '') + '</td>'
+        + '<td>' + (inicial ? '<span class="pill inicial">1er abono</span> ' : '') + esc(a.nota || '') + '</td>'
         + '<td style="white-space:nowrap"><button class="btn chico ed">Editar</button> '
         + '<button class="btn chico rojo bo">Borrar</button></td>'
       tr.querySelector('.ed').onclick = function () { editarAbono(a) }
