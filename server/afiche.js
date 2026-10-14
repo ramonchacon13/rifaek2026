@@ -263,6 +263,46 @@ function anotarAbono(puesto, monto, nota) {
   })
 }
 
+// Corrige un abono ya anotado (monto o nota). Devuelve el puesto afectado o null.
+function editarAbono(id, monto, nota) {
+  return pool.query(
+    'UPDATE abonos SET monto=$1, nota=$2 WHERE id=$3 RETURNING puesto',
+    [monto, nota || '', id]
+  ).then(function (r) {
+    estado.escrituraOk = true
+    estado.errorEscritura = ''
+    estado.conectado = true
+    estado.ultimoSync = Date.now()
+    return r.rowCount ? r.rows[0].puesto : null
+  }).catch(function (e) {
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
+    estado.conectado = false
+    console.log('Afiche fallo al editar el abono ' + id + ': ' + e.message)
+    return null
+  })
+}
+
+// Borra un abono ya anotado. Devuelve el puesto afectado o null.
+function borrarAbono(id) {
+  return pool.query(
+    'DELETE FROM abonos WHERE id=$1 RETURNING puesto',
+    [id]
+  ).then(function (r) {
+    estado.escrituraOk = true
+    estado.errorEscritura = ''
+    estado.conectado = true
+    estado.ultimoSync = Date.now()
+    return r.rowCount ? r.rows[0].puesto : null
+  }).catch(function (e) {
+    estado.escrituraOk = false
+    estado.errorEscritura = e.message
+    estado.conectado = false
+    console.log('Afiche fallo al borrar el abono ' + id + ': ' + e.message)
+    return null
+  })
+}
+
 // Historial de abonos, del mas reciente al mas antiguo.
 function leerAbonos() {
   return pool.query(
@@ -311,6 +351,8 @@ module.exports = {
   estadoLogo: estadoLogo,
   borrarPuesto: borrarPuesto,
   anotarAbono: anotarAbono,
+  editarAbono: editarAbono,
+  borrarAbono: borrarAbono,
   leerAbonos: leerAbonos,
   probar: selftest
 }

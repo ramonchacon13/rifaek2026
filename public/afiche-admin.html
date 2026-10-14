@@ -136,7 +136,7 @@
   <div class="card">
     <div class="sub" style="margin:0 0 10px;font-weight:800;color:#eef3f8">Historial de abonos</div>
     <div class="scroll" style="max-height:240px;overflow-y:auto"><table id="tHist">
-      <thead><tr><th>Puesto</th><th>Monto</th><th>Nota</th></tr></thead>
+      <thead><tr><th>Puesto</th><th>Monto</th><th>Nota</th><th></th></tr></thead>
       <tbody id="tbHist"></tbody>
     </table></div>
   </div>
@@ -265,15 +265,49 @@ function historial() {
     var tb = $('tbHist')
     tb.innerHTML = ''
     if (!d.abonos.length) {
-      tb.innerHTML = '<tr><td colspan="3" style="color:#8fa0b4;text-align:center">Todavia no hay abonos</td></tr>'
+      tb.innerHTML = '<tr><td colspan="4" style="color:#8fa0b4;text-align:center">Todavia no hay abonos</td></tr>'
       return
     }
     d.abonos.slice(0, 60).forEach(function (a) {
       var tr = document.createElement('tr')
-      tr.innerHTML = '<td><b>' + a.puesto + '</b></td><td style="color:var(--verde);font-weight:800">' + money(a.monto) + '</td><td>' + (a.nota || '') + '</td>'
+      tr.innerHTML = '<td><b>' + a.puesto + '</b></td>'
+        + '<td style="color:var(--verde);font-weight:800">' + money(a.monto) + '</td>'
+        + '<td>' + esc(a.nota || '') + '</td>'
+        + '<td style="white-space:nowrap"><button class="btn chico ed">Editar</button> '
+        + '<button class="btn chico rojo bo">Borrar</button></td>'
+      tr.querySelector('.ed').onclick = function () { editarAbono(a) }
+      tr.querySelector('.bo').onclick = function () { borrarAbono(a) }
       tb.appendChild(tr)
     })
   })
+}
+
+// Corregir un abono ya registrado: cambia el monto y/o la nota. El saldo del
+// puesto se recalcula solo al recargar, porque el estado se deriva de la suma.
+function editarAbono(a) {
+  var m = prompt('Nuevo monto del abono del puesto ' + a.puesto + ':', a.monto)
+  if (m === null) return
+  m = String(m).replace(/\D+/g, '')
+  if (!m) { alert('Monto invalido'); return }
+  var n = prompt('Nota (opcional):', a.nota || '')
+  if (n === null) return
+  api('/api/afiche/admin/abono/editar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: a.id, monto: m, nota: n }) })
+    .then(function (d) {
+      if (!d.ok) { alert(d.error); return }
+      carga()
+    })
+}
+
+// Borrar un abono mal cargado. No borra el puesto ni los demas abonos.
+function borrarAbono(a) {
+  if (!confirm('Borrar el abono de ' + money(a.monto) + ' del puesto ' + a.puesto + '?\n\nSe recalcula el saldo del puesto.')) return
+  api('/api/afiche/admin/abono/borrar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: a.id }) })
+    .then(function (d) {
+      if (!d.ok) { alert(d.error); return }
+      carga()
+    })
 }
 
 function mins(ms) {

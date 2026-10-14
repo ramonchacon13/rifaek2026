@@ -505,6 +505,41 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
     }).then(function () { return true }), true
   }
 
+  if (p === '/api/afiche/admin/abono/editar' && req.method === 'POST') {
+    if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
+    if (!afiche.activo) return sendJson(res, { ok: false, error: SIN_BASE }, 503), true
+    return leerBody(req).then(function (b) {
+      const id = parseInt(b.id, 10)
+      if (isNaN(id) || id <= 0) return sendJson(res, { ok: false, error: 'abono invalido' }, 400)
+      const monto = montoOk(b.monto)
+      if (monto === null) return sendJson(res, { ok: false, error: 'el monto no es valido' }, 400)
+      const nota = String(b.nota || '').trim().slice(0, 120)
+      return afiche.editarAbono(id, monto, nota).then(function (puesto) {
+        if (puesto == null) return sendJson(res, { ok: false, error: 'no se encontro ese abono' }, 404)
+        return cargarBase().then(function () {
+          const r = cache[puesto] || {}
+          return sendJson(res, { ok: true, puesto: puesto, pagado: r.pagado, saldo: r.saldo, estado: r.estado })
+        })
+      })
+    }).then(function () { return true }), true
+  }
+
+  if (p === '/api/afiche/admin/abono/borrar' && req.method === 'POST') {
+    if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
+    if (!afiche.activo) return sendJson(res, { ok: false, error: SIN_BASE }, 503), true
+    return leerBody(req).then(function (b) {
+      const id = parseInt(b.id, 10)
+      if (isNaN(id) || id <= 0) return sendJson(res, { ok: false, error: 'abono invalido' }, 400)
+      return afiche.borrarAbono(id).then(function (puesto) {
+        if (puesto == null) return sendJson(res, { ok: false, error: 'no se encontro ese abono' }, 404)
+        return cargarBase().then(function () {
+          const r = cache[puesto] || {}
+          return sendJson(res, { ok: true, puesto: puesto, pagado: r.pagado, saldo: r.saldo, estado: r.estado })
+        })
+      })
+    }).then(function () { return true }), true
+  }
+
   if (p === '/api/afiche/admin/editar' && req.method === 'POST') {
     if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
     return leerBody(req).then(function (b) {
