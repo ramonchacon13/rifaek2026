@@ -437,10 +437,12 @@ function pinta() {
       + '<td style="color:' + (r.estado === 'pagado' ? '#5aa9ff' : '#ffb020') + ';font-weight:800">' + (r.estado === 'pagado' ? '-' : money(r.saldo)) + '</td>'
       + '<td><span class="pill ' + r.estado + '">' + (r.estado === 'pagado' ? 'pagado' : (r.estado === 'apartado' ? 'con abono' : 'libre')) + '</span></td>'
       + '<td style="white-space:nowrap">'
+      + '<button class="btn chico ed">Editar</button> '
       + '<button class="btn chico ver">Logo</button> '
       + '<button class="btn chico ab">Abonar</button> '
       + '<button class="btn chico pre">Precio</button> '
       + '<button class="btn chico rojo lib">Liberar</button></td>'
+    tr.querySelector('.ed').onclick = function () { editarPuesto(r) }
     tr.querySelector('.ver').onclick = function () { verLogo(r) }
     tr.querySelector('.pre').onclick = function () {
       var p = prompt('Precio del puesto ' + r.puesto + ' (actual ' + money(r.precio) + '):', r.precio)
@@ -509,6 +511,32 @@ $('bHoja').onclick = function () {
     $('ov').classList.add('on')
     $('bCerrarHoja').onclick = cierra
   })
+}
+
+// ---- editar los datos del cliente (nombre y telefono) ----
+function editarPuesto(r) {
+  var h = '<h2>Puesto ' + r.puesto + '</h2><div class="sub2">Datos del cliente</div>'
+    + '<label>Nombre</label><input id="eNombre" value="' + esc(r.nombre || '') + '">'
+    + '<label>Telefono</label><input id="eTel" inputmode="numeric" value="' + esc(r.tel || '') + '">'
+    + '<div class="msj" id="mEd"></div>'
+    + '<button class="btn" id="bGuardarEd">Guardar</button>'
+    + '<button class="btn sec" id="bCerrarEd">Cerrar</button>'
+  $('modal').innerHTML = h
+  $('ov').classList.add('on')
+  $('bCerrarEd').onclick = cierra
+  $('bGuardarEd').onclick = function () {
+    var nom = $('eNombre').value.trim()
+    var tel = $('eTel').value.trim()
+    if (!nom) { $('mEd').textContent = 'Escribe el nombre'; $('mEd').className = 'msj mal'; return }
+    $('bGuardarEd').disabled = true
+    api('/api/afiche/admin/editar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ puesto: r.puesto, nombre: nom, tel: tel }) })
+      .then(function (d) {
+        $('bGuardarEd').disabled = false
+        if (!d.ok) { $('mEd').textContent = d.error; $('mEd').className = 'msj mal'; return }
+        cierra(); carga()
+      })
+  }
 }
 
 // ---- ver / subir / quitar un logo ----
