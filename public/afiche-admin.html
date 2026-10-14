@@ -257,7 +257,7 @@ function stats() {
 function cargaReglas() {
   api('/api/afiche/admin/logos').then(function (d) {
     if (!d.ok) return
-    $('fFaltan').textContent = d.faltan.length + ' sin logo listo'
+    $('fFaltan').textContent = d.faltan.length + ' sin logo'
   })
 }
 
@@ -407,14 +407,15 @@ $('bAbonar').onclick = function () {
 
 // El archivo del logo se pide solo cuando hace falta mostrarlo, para no
 // bajar los 83 base64 de golpe. Queda en memoria para no volver a pedirlo.
+// El token va en la URL porque un <img> no puede mandar cabeceras.
 function urlLogo(r) {
   if (cacheLogo[r.puesto]) return cacheLogo[r.puesto]
-  var u = '/api/afiche/admin/logo/' + r.puesto
+  var u = '/api/afiche/admin/logo/' + r.puesto + '?t=' + encodeURIComponent(token)
   cacheLogo[r.puesto] = u
   return u
 }
 
-function pintaLogo(r, html) {
+function pintaLogo(r) {
   if (!r.tieneLogo) {
     return '<div class="caja">sin logo</div>'
   }
@@ -427,12 +428,10 @@ function pinta() {
   var tb = $('tbody')
   tb.innerHTML = ''
   todos.filter(function (r) {
-    if (soloSinLogo && r.logoEstado === 'aprobado') return false
+    if (soloSinLogo && r.tieneLogo) return false
     if (!q) return true
     return (r.nombre || '').toLowerCase().indexOf(q) >= 0 || (r.tel || '').indexOf(q) >= 0 || String(r.puesto).indexOf(q) >= 0
   }).forEach(function (r) {
-    var lg = r.logoEstado || 'sin-logo'
-    var lgTxt = lg === 'sin-logo' ? 'sin logo' : (lg === 'aprobado' ? 'aprobado' : (lg === 'recibido' ? 'recibido' : 'rechazado'))
     var tr = document.createElement('tr')
     tr.innerHTML = '<td><b>' + r.puesto + '</b></td>'
       + '<td class="logoC">' + pintaLogo(r) + '</td>'
@@ -494,20 +493,20 @@ $('bSinLogo').onclick = function () {
 $('bHoja').onclick = function () {
   api('/api/afiche/admin/logos').then(function (d) {
     if (!d.ok) return
-    var h = '<h2>Hoja de revision</h2><div class="sub2">' + d.faltan.length + ' puestos sin logo aprobado'
+    var h = '<h2>Hoja de logos</h2><div class="sub2">' + d.faltan.length + ' puestos sin logo'
       + ' de ' + d.lista.length + '</div><div class="hoja">'
     if (!d.lista.length) {
       h += '<div style="grid-column:1/-1;text-align:center;color:#8fa0b4;padding:20px">Todavia no hay puestos con nombre.</div>'
     }
     d.lista.forEach(function (r) {
-      var ok = r.logoEstado === 'aprobado'
+      var ok = r.tieneLogo
       h += '<div class="hCelda ' + (ok ? 'ok' : 'no') + '">'
         + '<div class="hn">' + r.puesto + '</div>'
-        + '<div class="hi' + (r.logoEstado === 'sin-logo' || !r.logoEstado ? ' vacio' : '') + '">'
-        + (r.logoEstado && r.logoEstado !== 'sin-logo' ? '<img src="/api/afiche/admin/logo/' + r.puesto + '">' : '—')
+        + '<div class="hi' + (ok ? '' : ' vacio') + '">'
+        + (ok ? '<img src="' + urlLogo(r) + '">' : '—')
         + '</div>'
         + '<div class="hc">' + (r.nombre || 'sin nombre') + '</div>'
-        + '<div class="hc" style="color:' + (ok ? '#3ddc84' : '#ffb020') + '">' + lgTexto(r.logoEstado) + '</div>'
+        + '<div class="hc" style="color:' + (ok ? '#3ddc84' : '#ffb020') + '">' + (ok ? 'con logo' : 'sin logo') + '</div>'
         + '</div>'
     })
     h += '</div><button class="btn sec ancho" id="bCerrarHoja">Cerrar</button>'
@@ -517,38 +516,26 @@ $('bHoja').onclick = function () {
   })
 }
 
-function lgTexto(l) {
-  if (l === 'aprobado') return 'listo para imprimir'
-  if (l === 'recibido') return 'revisar'
-  if (l === 'rechazado') return 'rechazado'
-  return 'sin logo'
-}
-
-// ---- ver / subir / aprobar un logo ----
+// ---- ver / subir / quitar un logo ----
 function verLogo(r) {
-  var lg = r.logoEstado || 'sin-logo'
   var h = '<h2>Puesto ' + r.puesto + '</h2><div class="sub2">' + (r.nombre || 'sin nombre') + '</div>'
   if (r.tieneLogo) {
     h += '<div class="prev">' + (r.logoTipo.indexOf('PDF') === 0
-      ? '<iframe src="/api/afiche/admin/logo/' + r.puesto + '"></iframe>'
-      : '<img src="/api/afiche/admin/logo/' + r.puesto + '">') + '</div>'
+      ? '<iframe src="' + urlLogo(r) + '"></iframe>'
+      : '<img src="' + urlLogo(r) + '">') + '</div>'
   } else {
     h += '<div class="prev" style="color:#5a6b7c;font-size:12px">Aun no hay logo para este puesto</div>'
   }
-  h += '<div class="infoF">' + (r.logoTipo ? r.logoTipo : '—') + ' &nbsp;·&nbsp; ' + (lg === 'sin-logo' ? 'sin logo' : lgTexto(lg)) + '</div>'
-  if (r.logoNota) h += '<div class="aviso mal">' + esc(r.logoNota) + '</div>'
-  if (lg === 'aprobado') h += '<div class="aviso ok">Aprobado: este logo ya se puede usar en el diseno.</div>'
-  if (lg === 'recibido') h += '<div class="aviso ok">Revisalo. Cuando este bien, marcalo como aprobado.</div>'
+  h += '<div class="infoF">' + (r.logoTipo ? r.logoTipo : '—') + ' &nbsp;·&nbsp; ' + (r.tieneLogo ? 'con logo' : 'sin logo') + '</div>'
 
-  h += '<label>Cambiar el archivo</label>'
+  h += '<label>Subir o cambiar el archivo (imagen o PDF)</label>'
   h += '<input type="file" id="fLogo" accept="image/*,.pdf,.svg">'
+  h += '<div class="aviso" style="margin-top:8px">Sirve cualquier imagen (JPG, PNG, etc.) o un PDF. Mejor si es grande y con fondo transparente.</div>'
   h += '<div class="msj" id="mUp"></div>'
   if (r.tieneLogo) {
     h += '<button class="btn chico ancho" id="bBajarLogo" style="margin-top:8px">Descargar el archivo original</button>'
     h += '<div class="fila" style="gap:8px;margin-top:6px">'
-      + '<button class="btn chico verde aprobar" style="flex:1">Aprobar</button>'
-      + '<button class="btn chico rechazar" style="flex:1">Rechazar</button>'
-      + '<button class="btn chico gris" style="flex:1">Quitar</button></div>'
+      + '<button class="btn chico gris" style="flex:1">Quitar el logo</button></div>'
   }
   h += '<button class="btn sec ancho" id="bCerrarLogo">Cerrar</button>'
 
@@ -587,16 +574,6 @@ function verLogo(r) {
       })
   }
 
-  var ap = $('aprobar')
-  if (ap) ap.onclick = function () {
-    cambiaLogo(r, 'aprobado', '')
-  }
-  var rj = $('rechazar')
-  if (rj) rj.onclick = function () {
-    var nota = prompt('Por que se rechaza? (queda anotado para el cliente)', 'El logo se ve pixeleado, hay que subirlo mas grande o en PDF vectorial.')
-    if (nota === null) return
-    cambiaLogo(r, 'rechazado', nota)
-  }
   var qs = modal.querySelector('.gris')
   if (qs) qs.onclick = function () {
     if (!confirm('Quitar el logo del puesto ' + r.puesto + '?')) return
@@ -631,7 +608,7 @@ function verLogo(r) {
             carga()
             return
           }
-          $('mUp').textContent = 'Logo recibido: ' + d.tipo
+          $('mUp').textContent = 'Logo subido: ' + d.tipo
           $('mUp').className = 'msj ok'
           carga()
           verLogo(todos.filter(function (x) { return x.puesto === r.puesto })[0] || r)
@@ -647,15 +624,6 @@ function verLogo(r) {
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function cambiaLogo(r, est, nota) {
-  api('/api/afiche/admin/logo/estado', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ puesto: r.puesto, estado: est, nota: nota }) })
-    .then(function (d) {
-      if (!d.ok) { alert(d.error); return }
-      cierra(); carga()
-    })
 }
 
 function cierra() { $('ov').classList.remove('on') }

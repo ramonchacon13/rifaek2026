@@ -435,7 +435,9 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
 
   // El dueño o la vendedora suben el logo con el codigo. No lleva la clave de
   // admin: alcanza con el codigo del puesto. (El dinero, en cambio, solo lo
-  // registra el organizador desde el panel.)
+  // registra el organizador desde el panel.) El logo se puede reemplazar las
+  // veces que haga falta: no hay que aprobarlo, el organizador lo baja y lo
+  // prepara para el diseno.
   if (p === '/api/afiche/mio/logo' && req.method === 'POST') {
     return leerLogoBinario(req).then(function (file) {
       if (file.error) return sendJson(res, { ok: false, error: file.error }, 400)
@@ -444,14 +446,8 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       let n = null
       for (const k in cache) if (cache[k].codigo === c) n = parseInt(k, 10)
       if (n === null) return sendJson(res, { ok: false, error: 'codigo no encontrado' }, 404)
-      const r = cache[n] || {}
-      // El logo aprobado es el que va a imprimirse: desde afuera no se pisa.
-      // Si hay que cambiarlo, se hace desde el panel del administrador.
-      if (r.logoEstado === 'aprobado') {
-        return sendJson(res, { ok: false, error: 'Tu logo ya fue aprobado y no se puede reemplazar. Si necesitas cambiarlo, habla con el organizador.' }, 409)
-      }
       const d = describeLogo(file.buf, file.ext)
-      return guardaLogoArchivo(n, file, d, 'recibido').then(function (ok) {
+      return guardaLogoArchivo(n, file, d, 'subido').then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
         return sendJson(res, { ok: true, puesto: n, tipo: d.tipo, px: d.px })
       })
@@ -617,11 +613,14 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
     }).then(function () { return true }), true
   }
 
-  // Ver un logo. Solo con sesion de admin: es un archivo de trabajo, no va
-  // publicado. Se sirve con no-store porque el mismo puesto puede cambiar.
+  // Ver un logo. Se pide desde un <img>, que no puede mandar cabeceras, asi que
+  // el token de la sesion viaja en la URL ('?t='). Es solo lectura: nunca para
+  // borrar ni subir. Se sirve con no-store porque el mismo puesto puede cambiar.
   // El archivo se trae de la base de a uno, nunca en bloque.
   if (p.indexOf('/api/afiche/admin/logo/') === 0 && req.method === 'GET') {
-    if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
+    const tok = new URL(req.url, 'http://x').searchParams.get('t')
+    const conSesion = esAdmin(req) || !!(tok && sesiones[tok] && Date.now() - sesiones[tok] < 12 * 3600e3)
+    if (!conSesion) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
     const n = puestoOk(p.split('/').pop())
     if (n === null) return sendJson(res, { ok: false, error: 'numero de puesto invalido' }, 400), true
     const r = cache[n]
@@ -651,7 +650,7 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
       if (n === null) return sendJson(res, { ok: false, error: 'numero de puesto invalido' }, 400)
       if (!cache[n]) return sendJson(res, { ok: false, error: 'ese puesto no esta en uso' }, 404)
       const d = describeLogo(file.buf, file.ext)
-      return guardaLogoArchivo(n, file, d, 'recibido').then(function (ok) {
+      return guardaLogoArchivo(n, file, d, 'subido').then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
         return sendJson(res, { ok: true, puesto: n, tipo: d.tipo, px: d.px })
       })
@@ -660,31 +659,23 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
     }).then(function () { return true }), true
   }
 
+  // Quitar el logo de un puesto (deja de estar). No hay aprobar/rechazar: el
+  // logo que sube el dueno o la vendedora se usa tal cual.
   if (p === '/api/afiche/admin/logo/estado' && req.method === 'POST') {
     if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
     return leerBody(req).then(function (b) {
       const n = puestoOk(b.puesto)
       if (n === null) return sendJson(res, { ok: false, error: 'numero de puesto invalido' }, 400)
-      const est = ['recibido', 'aprobado', 'rechazado', 'sin-logo'].indexOf(b.estado) >= 0 ? b.estado : 'recibido'
-      if (est === 'sin-logo') {
-        if (!afiche.activo) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-        return afiche.guardarLogo(n, { logo: '', tipo: '', px: 0, estado: 'sin-logo', nota: '' }).then(function (ok) {
-          if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-          return cargarBase().then(function () { return sendJson(res, { ok: true }) })
-        })
-      }
-      const prev = cache[n]
-      if (!prev || !prev.tieneLogo) return sendJson(res, { ok: false, error: 'este puesto no tiene logo todavia' }, 404)
-      const nota = String(b.nota || '').trim().slice(0, 200)
+      if (String(b.estado) !== 'sin-logo') return sendJson(res, { ok: false, error: 'estado no soportado' }, 400)
       if (!afiche.activo) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-      return afiche.estadoLogo(n, est, nota).then(function (ok) {
+      return afiche.guardarLogo(n, { logo: '', tipo: '', px: 0, estado: 'sin-logo', nota: '' }).then(function (ok) {
         if (!ok) return sendJson(res, { ok: false, error: SIN_BASE }, 503)
-        return cargarBase().then(function () { return sendJson(res, { ok: true, estado: est }) })
+        return cargarBase().then(function () { return sendJson(res, { ok: true }) })
       })
     }).then(function () { return true }), true
   }
 
-  // Hoja de revision: todos los puestos con su logo, para revisarlos de una vez.
+  // Hoja de revision: todos los puestos con su logo, para verlos de una vez.
   if (p === '/api/afiche/admin/logos' && req.method === 'GET') {
     if (!esAdmin(req)) return sendJson(res, { ok: false, error: 'sin sesion' }, 401), true
     const lista = []
@@ -698,15 +689,13 @@ module.exports = function rutasAfiche(req, res, p, esAdmin, sesiones) {
         pagado: r.pagado,
         saldo: r.saldo,
         tieneLogo: r.tieneLogo,
-        logoTipo: r.logoTipo,
-        logoEstado: r.logoEstado,
-        logoNota: r.logoNota
+        logoTipo: r.logoTipo
       })
     }
     const falta = []
     for (let i = 1; i <= TOTAL; i++) {
       const r = cache[i]
-      if (r && r.estado !== 'libre' && r.logoEstado !== 'aprobado') falta.push(i)
+      if (r && r.estado !== 'libre' && !r.tieneLogo) falta.push(i)
     }
     return sendJson(res, { ok: true, lista: lista, faltan: falta }), true
   }

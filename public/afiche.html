@@ -266,20 +266,13 @@ function muestraMi(c, aviso) {
 
 // El logo que el dueno o la vendedora ven con su codigo.
 function logoActual(r) {
-  if (!r.logoEstado || r.logoEstado === 'sin-logo') return ''
-  var vis = ''
-  if (r.logo) {
-    vis = r.logoTipo.indexOf('PDF') === 0
-      ? '<iframe src="' + r.logo + '" style="width:100%;height:130px;border:0;border-radius:10px;background:#fff"></iframe>'
-      : '<img src="' + r.logo + '" style="max-width:100%;max-height:130px;border-radius:10px">'
-  }
-  var t = r.logoEstado === 'aprobado' ? 'Tu logo ya quedo aprobado.'
-    : (r.logoEstado === 'rechazado' ? 'El logo fue rechazado: hay que subirlo de nuevo.'
-    : (r.logoEstado === 'recibido' ? 'Logo recibido, falta que lo revisen.' : ''))
-  return '<div class="nota" style="margin-top:14px">Tu logo:</div>'
-    + (vis ? '<div style="text-align:center;margin-top:6px">' + vis + '</div>' : '')
-    + (t ? '<div class="nota">' + t + '</div>' : '')
-    + (r.logoNota ? '<div class="nota" style="color:#ff9a9a">' + esc(r.logoNota) + '</div>' : '')
+  if (!r.logo) return ''
+  var vis = r.logoTipo.indexOf('PDF') === 0
+    ? '<iframe src="' + r.logo + '" style="width:100%;height:130px;border:0;border-radius:10px;background:#fff"></iframe>'
+    : '<img src="' + r.logo + '" style="max-width:100%;max-height:130px;border-radius:10px">'
+  return '<div class="nota" style="margin-top:14px">Tu logo (ya recibido):</div>'
+    + '<div style="text-align:center;margin-top:6px">' + vis + '</div>'
+    + '<div class="nota">Si quieres cambiarlo, sube otro archivo y reemplaza a este.</div>'
 }
 
 function pintaMi(c, r, aviso) {
@@ -309,7 +302,7 @@ function pintaMi(c, r, aviso) {
     btn.disabled = true
     msg('Guardando...', '')
     subeLogo(c, arch).then(function (lg) {
-      if (lg.ok) muestraMi(c, { t: 'Logo recibido: ' + lg.tipo, ok: true })
+      if (lg.ok) muestraMi(c, { t: 'Logo subido: ' + lg.tipo, ok: true })
       else muestraMi(c, { t: lg.error || 'No se pudo subir el logo', ok: false })
     })
   }
