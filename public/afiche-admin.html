@@ -40,9 +40,6 @@
   .pill.libre { background:#123a2a; color:#3ddc84; }
   .pill.apartado { background:#3a2c12; color:#ffb020; }
   .pill.pagado { background:#122a45; color:#5aa9ff; }
-  .pill.aprobado { background:#123a2a; color:#3ddc84; }
-  .pill.recibido { background:#3a2c12; color:#ffb020; }
-  .pill.rechazado { background:#3a1414; color:#ff8f8f; }
   .pill['sin-logo'], .sinlogo { background:#1c2733; color:#8a97a6; }
   .pill.inicial { background:#123a2a; color:#3ddc84; }
   tr.inicial td { background:#122a20; }
@@ -50,8 +47,6 @@
   td.logoC .caja { width:46px; height:46px; border-radius:8px; background:#0d141c; border:1px solid #26313d;
                     display:flex; align-items:center; justify-content:center; overflow:hidden; font-size:9px; color:#6b7a8c; }
   td.logoC img { max-width:100%; max-height:100%; object-fit:contain; }
-  .btn.aprobar { background:var(--verde); }
-  .btn.rechazar { background:var(--rojo); }
   .buscar { display:flex; gap:8px; margin-bottom:12px; }
   .buscar input { flex:1; }
   .scroll { overflow-x:auto; }
@@ -70,7 +65,7 @@
   .aviso.mal { background:#3a1414; color:#ffb0b0; }
   .aviso.ok { background:#123a2a; color:#8fe8b0; }
   .infoF { font-size:12px; color:#9fb0c3; text-align:center; margin-bottom:10px; }
-  /* hoja de revision */
+  /* hoja de logos */
   .hoja { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; }
   .hCelda { background:#0f1720; border:1px solid #2b3947; border-radius:10px; padding:5px; text-align:center; }
   .hCelda .hn { font-size:14px; font-weight:800; color:#cfe0f0; }
@@ -159,7 +154,7 @@
       Limite de 4 MB por archivo.
     </div>
     <div class="fila" style="gap:8px;flex-wrap:wrap">
-      <button class="btn chico verde" id="bHoja" style="flex:1;min-width:150px">Ver hoja de revision</button>
+      <button class="btn chico verde" id="bHoja" style="flex:1;min-width:150px">Ver todos los logos</button>
       <div class="btn chico" style="flex:1;min-width:150px;text-align:center;padding:8px 12px" id="fFaltan">-</div>
     </div>
     <div class="msj" id="mLogos"></div>
@@ -489,7 +484,7 @@ $('bSinLogo').onclick = function () {
   pinta()
 }
 
-// ---- hoja de revision: todos los puestos con su logo, de una mirada ----
+// ---- hoja de logos: todos los puestos con su logo, de una mirada ----
 $('bHoja').onclick = function () {
   api('/api/afiche/admin/logos').then(function (d) {
     if (!d.ok) return

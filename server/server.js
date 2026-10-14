@@ -423,7 +423,14 @@ const server = http.createServer(async (req, res) => {
       '.ico': 'image/x-icon',
       '.pdf': 'application/pdf'
     }
-    res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
+    // El HTML, el JS y el CSS nunca se cachean: asi el panel siempre muestra la
+    // ultima version (de lo contrario el navegador se queda con la vieja). Las
+    // imagenes si pueden quedar en cache un rato: cambian poco.
+    const sinCache = ext === '.html' || ext === '.js' || ext === '.css'
+    res.writeHead(200, {
+      'Content-Type': types[ext] || 'application/octet-stream',
+      'Cache-Control': sinCache ? 'no-store, must-revalidate' : 'public, max-age=86400'
+    })
     res.end(data)
   })
 })
