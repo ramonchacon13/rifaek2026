@@ -248,7 +248,7 @@ const server = http.createServer(async (req, res) => {
     if (atendido) return
   }
 
-  if (p === '/api/estado' && req.method === 'GET') {
+  if (p === '/api/estado' && (req.method === 'GET' || req.method === 'HEAD')) {
     const out = {}
     for (let i = 0; i < TOTAL; i++) {
       const n = ('0' + i).slice(-2)
