@@ -1,11 +1,11 @@
-// Modulo de afiche: 83 puestos publicitarios con abonos.
+// Modulo de afiche: 85 puestos publicitarios con abonos.
 // Vive junto a la rifa pero NO comparte tablas ni estado con ella:
 //   rifa   -> tabla 'reservas'  (00-99, codigo de acceso)
-//   afiche -> tablas 'puestos' y 'abonos' (1-83, saldo acumulado)
+//   afiche -> tablas 'puestos' y 'abonos' (1-85, saldo acumulado)
 const { Pool } = require('pg')
 
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim()
-const TOTAL_PUESTOS = 83
+const TOTAL_PUESTOS = 85
 const TOPE = 55000
 
 const estado = {
@@ -74,7 +74,7 @@ function asegurar() {
 }
 
 // Suma de abonos por puesto. El saldo nunca es negativo.
-// La columna 'logo' NO se trae aqui a proposito: son hasta 83 archivos de
+    // La columna 'logo' NO se trae aqui a proposito: son hasta 85 archivos de
 // varios MB cada uno, y esta consulta corre en cada abono. Leerlos todos
 // dejaria el servidor sin respuesta. El archivo se pide de a uno con
 // leerLogo() cuando hay que mostrarlo o descargarlo.

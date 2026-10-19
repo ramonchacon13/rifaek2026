@@ -64,7 +64,7 @@
 <body>
 <header>
   <h1>afiche2027</h1>
-  <p>83 puestos publicitarios - valor 55.000 cada uno</p>
+  <p>85 puestos publicitarios - valor 55.000 cada uno</p>
   <img class="portada" src="/afiche-modelo.jpg" alt="Modelo del afiche 2027" onclick="verPortada()">
 </header>
 
@@ -143,7 +143,7 @@ function carga() {
 function pinta() {
   var c = $('cont')
   c.innerHTML = ''
-  for (var i = 1; i <= 83; i++) {
+  for (var i = 1; i <= 85; i++) {
     var r = puestos[i] || { estado: 'libre', pagado: 0, saldo: resumen.topePorPuesto || 55000 }
     if (filtro !== 'todos' && r.estado !== filtro) continue
     var d = document.createElement('div')

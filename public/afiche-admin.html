@@ -79,7 +79,7 @@
 </head>
 <body>
 <h1>afiche2027</h1>
-<div class="sub">83 puestos publicitarios - panel para registrar abonos</div>
+<div class="sub">85 puestos publicitarios - panel para registrar abonos</div>
 
 <div class="card" id="login">
   <label>Clave de administrador</label>
@@ -211,7 +211,7 @@ $('pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('b
 function llenaPuestos() {
   ;['fPuesto', 'aPuesto'].forEach(function (id) {
     var s = $(id)
-    for (var i = 1; i <= 83; i++) {
+    for (var i = 1; i <= 85; i++) {
       var o = document.createElement('option')
       o.value = i
       o.text = i
@@ -401,7 +401,7 @@ $('bAbonar').onclick = function () {
 }
 
 // El archivo del logo se pide solo cuando hace falta mostrarlo, para no
-// bajar los 83 base64 de golpe. Queda en memoria para no volver a pedirlo.
+// bajar los 85 base64 de golpe. Queda en memoria para no volver a pedirlo.
 // El token va en la URL porque un <img> no puede mandar cabeceras.
 function urlLogo(r) {
   if (cacheLogo[r.puesto]) return cacheLogo[r.puesto]

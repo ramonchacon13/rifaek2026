@@ -241,7 +241,7 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x')
   const p = u.pathname
 
-  // Modulo de afiche (83 puestos con abonos). Si la peticion es suya, ya quedo
+  // Modulo de afiche (85 puestos con abonos). Si la peticion es suya, ya quedo
   // respondida aqui y el servidor no sigue al routing de la rifa.
   if (p === '/api/afiche' || p.indexOf('/api/afiche/') === 0) {
     const atendido = await rutasAfiche(req, res, p, esAdmin, sesiones)
@@ -464,7 +464,7 @@ server.listen(PORT, '0.0.0.0', async () => {
   await rutasAfiche.iniciar()
   pullPeriodico()
   console.log('Apartados 00-99 escuchando en 0.0.0.0:' + PORT)
-  console.log('Afiche 01-83 en /afiche.html  |  panel en /afiche-admin.html')
+  console.log('Afiche 01-85 en /afiche.html  |  panel en /afiche-admin.html')
   console.log('Admin: /admin.html  clave: ' + (ES_RENDER ? '(definida en el servidor)' : ADMIN_PASS))
   console.log('Base de datos: ' + (bd.activo ? 'configurada, escritura ' + (salud.bd.escrituraOk === true ? 'OK' : 'FALLIDA') : 'NO CONFIGURADA') + ' | snapshots: ' + (ES_RENDER ? 'no (Render)' : 'si'))
 })

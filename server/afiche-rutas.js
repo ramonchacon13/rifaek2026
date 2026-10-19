@@ -1,4 +1,4 @@
-// Rutas del modulo de afiche (83 puestos publicitarios con abonos).
+// Rutas del modulo de afiche (85 puestos publicitarios con abonos).
 // Montado aparte en server.js. Comparte la MISMA base de datos Neon que la rifa,
 // pero usa sus propias tablas: 'puestos' y 'abonos'. La rifa no se toca.
 const crypto = require('crypto')
